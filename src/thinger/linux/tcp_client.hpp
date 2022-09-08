@@ -61,13 +61,6 @@ public:
     }
 
 protected:
-    virtual const char* get_server(){
-    	return THINGER_SERVER;
-    }
-
-    virtual unsigned short get_server_port(){
-    	return THINGER_PORT;
-    }
 
 	// TODO change this to a monotonic clock implementation. Using c++11?
     unsigned long millis() {

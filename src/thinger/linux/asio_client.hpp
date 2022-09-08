@@ -52,30 +52,30 @@ namespace thinger_client{
 #endif
 
     public:
-        asio_client(const std::string& user, const std::string& device, const std::string& device_credential) :
-                work_(io_),
-                username_(user),
-                device_id_(device),
-                device_password_(device_credential),
+        asio_client(std::string user, std::string device, std::string credential) :
+            work_(io_),
+            username_(std::move(user)),
+            device_id_(std::move(device)),
+            device_password_(std::move(credential)),
 #ifdef THINGER_OPEN_SSL
-                socket_(io_, get_ssl_ctx()),
+            socket_(io_, get_ssl_ctx()),
 #else
-                socket_(io_),
+            socket_(io_),
 #endif
-                async_timer_(io_)
+            async_timer_(io_)
         {
 
 
         }
 
         asio_client() :
-                work_(io_),
+            work_(io_),
 #ifdef THINGER_OPEN_SSL
-                socket_(io_, get_ssl_ctx()),
+            socket_(io_, get_ssl_ctx()),
 #else
-                socket_(io_),
+            socket_(io_),
 #endif
-                async_timer_(io_)
+            async_timer_(io_)
         {
 
         }
@@ -234,7 +234,7 @@ namespace thinger_client{
             notify_state(SOCKET_CONNECTING);
 
 
-            socket_.connect(THINGER_SERVER, std::to_string(THINGER_PORT), THINGER_CONNECT_TIMEOUT, [this](const boost::system::error_code& e) -> void{
+            socket_.connect(host_, std::to_string(port_), THINGER_CONNECT_TIMEOUT, [this](const boost::system::error_code& e) -> void{
                 // reset connecting
                 connecting_ = false;
 
@@ -299,6 +299,8 @@ namespace thinger_client{
         std::string username_;
         std::string device_id_;
         std::string device_password_;
+        std::string hostname_;
+
     };
 
 }

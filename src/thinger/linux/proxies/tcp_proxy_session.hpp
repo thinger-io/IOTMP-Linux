@@ -32,7 +32,7 @@ class tcp_proxy_session : public stream_session{
                     // handle read
                     handle_read();
                 }else{
-                    THINGER_LOG_ERROR("error on proxy connection: %s:%u (%s)", host_.c_str(), port_, ec.what().c_str());
+                    THINGER_LOG_ERROR("error on proxy connection: %s:%u (%s)", host_.c_str(), port_, ec.message().c_str());
                 }
             });
             return false;

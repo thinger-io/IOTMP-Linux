@@ -98,22 +98,22 @@ namespace thinger_client{
 
     class thinger : public thinger_io{
     public:
-        thinger() :
+        thinger(const char* username="", const char* device="", const char* credentials="", const char* host="backend.thinger.io", uint16_t port=25206, bool secure=true) :
                 encoder(*this),
                 decoder(*this),
                 last_keep_alive(0),
                 keep_alive_response(true),
                 streams_(*this),
-                host_(THINGER_SERVER),
-                port_(THINGER_PORT),
+                host_(host),
+                port_(port),
 #ifdef THINGER_OPEN_SSL
                 secure_(true),
 #else
                 secure_(false),
 #endif
-                username_(""),
-                device_id_(""),
-                device_password_("")
+                username_(username),
+                device_id_(device),
+                device_password_(credentials)
         {
 #ifdef THINGER_FREE_RTOS_MULTITASK
             semaphore_ = xSemaphoreCreateMutex();
@@ -132,7 +132,7 @@ namespace thinger_client{
             state_listener_ = listener;
         }
 
-    private:
+    protected:
         thinger_write_encoder encoder;
         thinger_read_decoder decoder;
         unsigned long last_keep_alive;
@@ -160,6 +160,50 @@ namespace thinger_client{
 #ifdef THINGER_MULTITHREAD
         std::mutex mutex_;
 #endif
+
+    public:
+        /**
+        * Can be override to start reconnection process
+        */
+        virtual void disconnected(){
+            // stop all streaming resources after disconnect
+            streams_.clear();
+        }
+
+        void connected(){
+            // stop all streaming resources after disconnect
+            streams_.clear();
+        }
+
+        void set_host(const char* host){
+            host_ = host;
+        }
+
+        const char* get_host(){
+            return host_;
+        }
+
+        void set_port(unsigned short port){
+            port_ = port;
+        }
+
+        unsigned int get_port(){
+            return port_;
+        }
+
+        void set_secure_connection(bool secure){
+            secure_ = secure;
+        }
+
+        bool set_secure_connection(){
+            return secure_;
+        }
+
+        void set_credentials(const char* username, const char* device_id, const char* device_password){
+            username_ = username;
+            device_id_ = device_id;
+            device_password_ = device_password;
+        }
 
     protected:
 
@@ -237,49 +281,6 @@ namespace thinger_client{
             if(state_listener_){
                 state_listener_(state);
             }
-        }
-
-        /**
-         * Can be override to start reconnection process
-         */
-        virtual void disconnected(){
-            // stop all streaming resources after disconnect
-            streams_.clear();
-        }
-
-        void connected(){
-            // stop all streaming resources after disconnect
-            streams_.clear();
-        }
-
-        void set_host(const char* host){
-            host_ = host;
-        }
-
-        const char* get_host(){
-            return host_;
-        }
-
-        void set_port(unsigned short port){
-            port_ = port;
-        }
-
-        unsigned int get_port(){
-            return port_;
-        }
-
-        void set_secure_connection(bool secure){
-            secure_ = secure;
-        }
-
-        bool set_secure_connection(){
-            return secure_;
-        }
-
-        void set_credentials(const char* username, const char* device_id, const char* device_password){
-            username_ = username;
-            device_id_ = device_id;
-            device_password_ = device_password;
         }
 
         void subscribe_resources(){

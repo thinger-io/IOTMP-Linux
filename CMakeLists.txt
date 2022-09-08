@@ -39,6 +39,11 @@ if(Boost_FOUND)
     SET(ASIO_CLIENT 1)
 endif()
 
+# required for GCC < 9.0
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    list(APPEND ADDITIONAL_LIBS "stdc++fs")
+endif()
+
 
 # Add 'util' lib for supporting forkpty
 list(APPEND ADDITIONAL_LIBS util)

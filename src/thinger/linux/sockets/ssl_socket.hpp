@@ -28,7 +28,7 @@ public:
 
 	void async_read(uint8_t buffer[], size_t size, std::function<void(const boost::system::error_code& e, std::size_t bytes_transferred)> handler) override;
 
-    void async_read(boost::asio::streambuf&, size_t, std::function<void(const boost::system::error_code&, long unsigned int)>) override;
+    void async_read(boost::asio::streambuf&, size_t, std::function<void(const boost::system::error_code&, std::size_t)>) override;
 
 	void async_read_until(boost::asio::streambuf& buffer, const boost::regex & expr, std::function<void(const boost::system::error_code& e, std::size_t bytes_transferred)> handler) override;
 
