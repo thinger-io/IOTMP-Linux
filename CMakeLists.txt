@@ -50,7 +50,6 @@ list(APPEND ADDITIONAL_LIBS util)
 
 add_definitions( -DASIO_CLIENT=${ASIO_CLIENT} )
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
-add_definitions( -DTHINGER_SERVER="supermicro")
 add_definitions( -DTHINGER_KEEP_ALIVE_SECONDS=50)
 add_definitions( -DTHINGER_RECONNECT_SECONDS=15)
 add_definitions( -DTHINGER_CONNECT_TIMEOUT=15)
