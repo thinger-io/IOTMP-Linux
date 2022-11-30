@@ -141,6 +141,22 @@ int main(int argc, char *argv[])
     // initialize client version extension
     iotmp::version version(client);
 
+    // example state listener
+    client.set_state_listener([&](iotmp::THINGER_STATE state){
+        if(state==iotmp::THINGER_AUTHENTICATED){
+            unsigned connections = 0;
+            pson data;
+            if(client.get_property("connections", data)){
+                connections = data;
+                connections++;
+            }
+            data = connections;
+            if(client.set_property("connections", data, true)){
+                THINGER_LOG("connections updated to: %d", connections);
+            }
+        }
+    });
+
     // start client
     client.start();
 
