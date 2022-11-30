@@ -636,7 +636,7 @@ namespace thinger::iotmp{
             // handle input
             if(bytes_available){
                 iotmp_message message(message::type::RESERVED);
-                synchronized(bool result = read_message(message);)
+                bool result = read_message(message);
                 if(result) handle_request_received(message);
                 else disconnected();
             }
@@ -664,26 +664,27 @@ namespace thinger::iotmp{
          * @return true or false if the message passed in reference was filled with a valid message.
          */
         bool read_message(iotmp_message& message){
-            uint32_t type = 0;
-            bool success = decoder.pb_decode_varint32(type);
+            synchronized(
+                uint32_t type = 0;
+                bool success = decoder.pb_decode_varint32(type);
 
-            // decode message size & message itself
-            if(success){
-                message.set_message_type(static_cast<message::type>(type));
-                uint32_t size = 0;
-                success = decoder.pb_decode_varint32(size) && decoder.decode(message, size);
-            }
-
-            if(success){
-                if(message.get_message_type()!=message::STREAM_DATA ||
-                        (message.has_field(message::stream::PAYLOAD) &&
-                            !message[message::stream::PAYLOAD].is_bytes())){
-                    THINGER_LOG_TAG("MSG__IN", "%s", message.dump(true).c_str());
+                // decode message size & message itself
+                if(success){
+                    message.set_message_type(static_cast<message::type>(type));
+                    uint32_t size = 0;
+                    success = decoder.pb_decode_varint32(size) && decoder.decode(message, size);
                 }
-            }else{
-                THINGER_LOG_ERROR_TAG("MSG_ERR", "Cannot read input message!");
-            }
 
+                if(success){
+                    if(message.get_message_type()!=message::STREAM_DATA ||
+                            (message.has_field(message::stream::PAYLOAD) &&
+                                !message[message::stream::PAYLOAD].is_bytes())){
+                        THINGER_LOG_TAG("MSG__IN", "%s", message.dump(true).c_str());
+                    }
+                }else{
+                    THINGER_LOG_ERROR_TAG("MSG_ERR", "Cannot read input message!");
+                }
+            )
             return success;
         }
 
@@ -709,6 +710,7 @@ namespace thinger::iotmp{
                 }else{
                     handle_request_received(response);
                 }
+
             }while(true);
         }
 
@@ -718,17 +720,30 @@ namespace thinger::iotmp{
          * @return true if success
          */
         bool write_message(iotmp_message& message){
+            // log output message
             if(message.get_message_type()!=message::STREAM_DATA ||
                (message.has_field(message::stream::PAYLOAD) &&
                 !message[message::stream::PAYLOAD].is_bytes())){
                 THINGER_LOG_TAG("MSG_OUT", "%s", message.dump(true).c_str());
             }
+
+            // encode message in sink, to know target size
             iotmp_encoder sink;
             sink.encode(message);
-            encoder.pb_encode_varint(message.get_message_type());
-            encoder.pb_encode_varint(sink.bytes_written());
-            encoder.encode(message);
-            return write(nullptr, 0, true);
+
+            bool result = false;
+            synchronized(
+                // encode message type
+                encoder.pb_encode_varint(message.get_message_type());
+                // encode message size
+                encoder.pb_encode_varint(sink.bytes_written());
+                // encode message itself
+                encoder.encode(message);
+                // write 0 bytes (flush message)
+                result = write(nullptr, 0, true);
+            )
+
+            return result;
         }
 
         /**
@@ -737,8 +752,7 @@ namespace thinger::iotmp{
          * @return true if the message was written to the socket
          */
         bool send_message(iotmp_message& message){
-            synchronized(bool result = write_message(message);)
-            return result;
+            return write_message(message);
         }
 
         /**
@@ -749,8 +763,7 @@ namespace thinger::iotmp{
          */
         bool send_message_with_ack(iotmp_message& message, bool wait_ack=true){
             if(wait_ack && message.get_stream_id()==0) message.set_random_stream_id();
-            synchronized(bool result = write_message(message) && (!wait_ack || wait_response(message));)
-            return result;
+            return write_message(message) && (!wait_ack || wait_response(message));
         }
 
         /**
@@ -761,8 +774,7 @@ namespace thinger::iotmp{
          */
         bool send_message(iotmp_message& message, protoson::pson& data){
             if(message.get_stream_id()==0) message.set_random_stream_id();
-            synchronized(bool result = write_message(message) && wait_response(message, &data););
-            return result;
+            return write_message(message) && wait_response(message, &data);
         }
 
         /**
@@ -795,7 +807,7 @@ namespace thinger::iotmp{
                 }else if(*res_path++!=*req_path++){
                     return false;
                 }
-            };
+            }
             return !*res_path && !*req_path;
         }
 
