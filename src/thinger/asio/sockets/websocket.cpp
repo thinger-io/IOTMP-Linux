@@ -1,7 +1,5 @@
 #include "websocket.hpp"
 
-#include <logger.hpp>
-
 #include "../../http/util/utf8.hpp"
 #include "../../http/http_request.hpp"
 #include "../../http/http_client.hpp"
@@ -20,6 +18,8 @@
  */
 
 namespace thinger::asio{
+
+    static constexpr size_t MAX_PAYLOAD_SIZE = 1*1024*1024;
 
     using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
 
@@ -861,6 +861,8 @@ namespace thinger::asio{
     }
 
     size_t websocket::read(uint8_t buffer[], size_t size, boost::system::error_code& ec){
+
+        // is there enough data in buffer ?
         if(b.size()>=size){
             b.sgetn(reinterpret_cast<char *>(buffer), size);
             return size;
@@ -958,22 +960,17 @@ namespace thinger::asio{
             }
         }
 
-        size_t max_size = 4096;
-        uint8_t temp_buffer[4096];
+        std::vector<uint8_t> temp_buffer;
 
         // we know the current size, so read it directly
         if(data_size<126){
-            // ensure buffer capacity
-            if(data_size>max_size){
-                LOG_ERROR("websocket data is bigger than buffer, max buffer size: %zu", max_size);
-                ec = boost::asio::error::no_buffer_space;
-                return 0;
-            }
-            // note: even payload of 0 should be read, as it may contain a mask
-            auto bytes_read = handle_payload_read(opcode, fin, temp_buffer, data_size, masked, max_size, ec);
-            if(ec) return 0;
-            b.sputn((const char*)temp_buffer, bytes_read);
+            // reserve buffer size
+            temp_buffer.resize(data_size);
 
+            // note: even payload of 0 should be read, as it may contain a mask
+            auto bytes_read = handle_payload_read(opcode, fin, temp_buffer.data(), data_size, masked, MAX_PAYLOAD_SIZE, ec);
+            if(ec) return 0;
+            b.sputn((const char*)temp_buffer.data(), bytes_read);
         }else{
             // ensure PING, PONG, OR CLOSE, does not send messages with more than 125 characters
             if(opcode>=0x8){
@@ -1000,14 +997,17 @@ namespace thinger::asio{
             for(auto i=0; i<bytes_transferred; ++i) size = (size << 8) + buffer_[i];
 
             // ensure buffer capacity
-            if(size>max_size){
-                LOG_ERROR("websocket data is bigger than buffer, max buffer size: %zu", max_size);
+            if(size>MAX_PAYLOAD_SIZE){
+                LOG_ERROR("websocket data is bigger than buffer, max buffer size: %zu", MAX_PAYLOAD_SIZE);
                 ec = boost::asio::error::no_buffer_space;
                 return 0;
             }
-            auto bytes_read = handle_payload_read(opcode, fin, temp_buffer, size, masked, max_size, ec);
+
+            // reserve buffer size
+            temp_buffer.resize(size);
+            auto bytes_read = handle_payload_read(opcode, fin, temp_buffer.data(), size, masked, MAX_PAYLOAD_SIZE, ec);
             if(ec) return 0;
-            b.sputn((const char*)temp_buffer, bytes_read);
+            b.sputn((const char*)temp_buffer.data(), bytes_read);
         }
 
         if(b.size()>=size){

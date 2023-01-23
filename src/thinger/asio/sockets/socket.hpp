@@ -12,7 +12,7 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/regex.hpp>
 
-#include <types.hpp>
+#include "../../util/types.hpp"
 
 namespace thinger::asio{
 

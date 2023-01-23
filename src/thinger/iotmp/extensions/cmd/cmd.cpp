@@ -71,9 +71,9 @@ namespace thinger::iotmp{
                     try{
                         pout = {&out[0], size};
                     }catch(const std::exception & e) {
-                        LOG_F(ERROR, "error while calling result callback: %s", e.what());
+                        LOG_ERROR("error while calling result callback: %s", e.what());
                     }catch(...){
-                        LOG_F(ERROR, "error while calling result callback");
+                        LOG_ERROR("error while calling result callback");
                     }
                 }
                 if(!ec && c.running()){
@@ -106,7 +106,7 @@ namespace thinger::iotmp{
             c.wait();
             return c.exit_code();
         }catch(const std::exception & e) {
-            LOG_F(ERROR, "error while executing command: %s", e.what());
+            LOG_ERROR("error while executing command: %s", e.what());
             return EXIT_FAILURE;
         }catch(...){
             return EXIT_FAILURE;

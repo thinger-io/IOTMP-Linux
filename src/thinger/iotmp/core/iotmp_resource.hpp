@@ -28,13 +28,14 @@
 #include "pson.h"
 #include "iotmp_message.hpp"
 #include "thinger_result.hpp"
+#include "../../util/logger.hpp"
 #include <functional>
 
 #ifdef __has_include
 #  if __has_include(<httplib.h>)
 #    include <httplib.h>
 #    include "pson_to_json.hpp"
-#    include "../linux/json_decoder.hpp"
+#    include "../../util/json_decoder.hpp"
 #    define THINGER_USE_LOCAL_HTTPLIB
 #  endif
 #endif
@@ -510,8 +511,7 @@ namespace thinger::iotmp{
                 LOG_INFO("starting local endpoint: %s", path.c_str());
                 server_->Get(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
                     protoson::pson in, path;
-                    input input_body(in);
-                    input_body.set_describe(true);
+                    input input_body(0, in, true);
                     if(matches(name_, req.path.substr(1).c_str(), path)) input_body.set_path_fields(path);
                     callback_.input_(input_body);
                     if(!in.is_empty()){
@@ -525,7 +525,7 @@ namespace thinger::iotmp{
                 server_->Post(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
                     // decode input
                     protoson::pson in, path;
-                    input input_body(in);
+                    input input_body(0, in);
                     if(matches(name_, req.path.substr(1).c_str(), path)) input_body.set_path_fields(path);
                     // try to decode json to pson
                     if(protoson::json_decoder::parse(req.body, in)){
@@ -608,7 +608,7 @@ namespace thinger::iotmp{
 
                 server_->Get(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
                     protoson::pson in, out;
-                    input input_body(in, true);
+                    input input_body(0, in, true);
                     output output_body(out, true);
                     callback_.input_output_(input_body, output_body);
                     if(!in.is_empty()){
@@ -632,7 +632,7 @@ namespace thinger::iotmp{
                     // define output
                     protoson::pson out;
 
-                    input in_wrapper(in);
+                    input in_wrapper(0, in);
                     output out_wrapper(out);
 
                     // call input output callback;

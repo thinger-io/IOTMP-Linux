@@ -2,7 +2,6 @@
 #define THINGER_ASIO_UNIX_SOCKET_HPP
 
 #include "socket.hpp"
-#include <logger.hpp>
 
 namespace thinger::asio {
 

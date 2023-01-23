@@ -143,7 +143,9 @@ namespace thinger::iotmp{
             SET_DEVICE_PROPERTY         = 0X02,
             CALL_DEVICE                 = 0X03,
             CALL_ENDPOINT               = 0X04,
-            WRITE_BUCKET                = 0X05
+            WRITE_BUCKET                = 0X05,
+            LOCK_SYNC                   = 0X06,
+            UNLOCK_SYNC                 = 0X07,
         };
     }
 

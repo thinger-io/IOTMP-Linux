@@ -32,10 +32,13 @@
 #include "iotmp_decoder.hpp"
 #include "iotmp_message.hpp"
 #include "iotmp_io.hpp"
-#include "../util/logger.hpp"
 #include "iotmp_stream.hpp"
+#include "../../util/logger.hpp"
+#include <string.h>
 
-#define KEEP_ALIVE_MILLIS 60000
+#ifndef THINGER_KEEP_ALIVE_SECONDS
+#define THINGER_KEEP_ALIVE_SECONDS 60
+#endif
 
 #ifndef THINGER_AUTH_MODE
 #define THINGER_AUTH_MODE THINGER_AUTH_MODE_LOGIN
@@ -98,7 +101,7 @@ namespace thinger::iotmp{
 
     class iotmp : public iotmp_io{
     public:
-        iotmp(const char* username="", const char* device="", const char* credentials="", const char* host="backend.thinger.io", uint16_t port=25206, bool secure=true) :
+        iotmp(const char* username="", const char* device="", const char* credentials="", const char* host=THINGER_SERVER, uint16_t port=25206, bool secure=true) :
                 encoder(*this),
                 decoder(*this),
                 last_keep_alive(0),
@@ -340,6 +343,27 @@ namespace thinger::iotmp{
 
         iotmp_resource& topic(const char* path){
             return topics_[path](path);
+        }
+
+        bool lock_sync(const char* sync_identifier,
+                       const char* lock_id="",
+                       unsigned long slots=1,
+                       unsigned long timeout_seconds = 0){
+            iotmp_message message(message::type::RUN);
+            message[message::run::RESOURCE] = server::LOCK_SYNC;
+            message[message::run::PARAMETERS] = sync_identifier;
+            if(strlen(lock_id)>0) message[message::run::PAYLOAD]["lock"] = lock_id;
+            if(slots>1) message[message::run::PAYLOAD]["slots"] = slots;
+            if(timeout_seconds>0) message[message::run::PAYLOAD]["timeout"] = timeout_seconds;
+            return send_message_with_ack(message);
+        }
+
+        bool unlock_sync(const char* sync_identifier, const char* lock_id){
+            iotmp_message message(message::type::RUN);
+            message[message::run::RESOURCE] = server::UNLOCK_SYNC;
+            message[message::run::PARAMETERS] = sync_identifier;
+            message[message::run::PAYLOAD]["lock"] = lock_id;
+            return send_message_with_ack(message);
         }
 
         /**
@@ -642,7 +666,7 @@ namespace thinger::iotmp{
             }
 
             // handle keep alive (send keep alive to server to prevent disconnection)
-            if(current_time-last_keep_alive>KEEP_ALIVE_MILLIS){
+            if(current_time-last_keep_alive>(THINGER_KEEP_ALIVE_SECONDS*1000)){
                 if(keep_alive_response){
                     last_keep_alive = current_time;
                     keep_alive_response = false;

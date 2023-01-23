@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "thinger.h"
+#include "thinger/thinger.h"
 #include <boost/program_options.hpp>
 #include <filesystem>
 

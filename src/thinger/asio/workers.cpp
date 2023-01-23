@@ -1,6 +1,6 @@
 #include "workers.hpp"
 #include <boost/bind/bind.hpp>
-#include <logger.hpp>
+#include "../util/logger.hpp"
 
 namespace thinger::asio{
 

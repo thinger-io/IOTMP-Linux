@@ -1,5 +1,4 @@
 #include "ssl_socket.hpp"
-#include <logger.hpp>
 
 namespace thinger::asio{
 

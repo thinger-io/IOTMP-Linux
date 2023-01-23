@@ -23,11 +23,10 @@ else()
 endif()
 
 # include src/util ash include path
-include_directories("src/thinger/util")
+include_directories("src/loguru")
 
 # configure Thinger.io parameters
 OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
-OPTION(ENABLE_LOGGING "Enable logging" ON)
 
 # OpenSSL
 set(OPENSSL_USE_STATIC_LIBS TRUE)
@@ -35,7 +34,7 @@ set(OPENSSL_USE_STATIC_LIBS TRUE)
 if (APPLE)
     # This is a bug in CMake that causes it to prefer the system version over
     # the one in the specified ROOT folder.
-    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/Cellar/openssl@1.1/1.1.1q/)
+    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/Cellar/openssl@1.1/1.1.1s/)
     set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib CACHE FILEPATH "" FORCE)
     set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libssl.dylib CACHE FILEPATH "" FORCE)
 endif()
@@ -72,14 +71,10 @@ endif()
 list(APPEND ADDITIONAL_LIBS util)
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
-add_definitions( -DTHINGER_KEEP_ALIVE_SECONDS=50)
+add_definitions( -DTHINGER_SERVER="iot.thinger.io")
+add_definitions( -DTHINGER_KEEP_ALIVE_SECONDS=60)
 add_definitions( -DTHINGER_RECONNECT_SECONDS=15)
 add_definitions( -DTHINGER_CONNECT_TIMEOUT=15)
-add_definitions( -DTHINGER_LOG_LOGURU)
-
-IF(ENABLE_LOGGING)
-    add_definitions( -DTHINGER_LOGURU_DEBUG)
-ENDIF()
 
 if(OPENSSL_FOUND)
     add_definitions(-DTHINGER_PORT=25206)

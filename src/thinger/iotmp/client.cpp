@@ -141,7 +141,7 @@ namespace thinger::iotmp{
         authenticated_ = false;
         if(running_ && !connecting_){
             async_timer_.set_timeout(std::chrono::seconds{THINGER_RECONNECT_SECONDS});
-            LOG_F(INFO, "tyring to connect again in %d seconds", THINGER_RECONNECT_SECONDS);
+            LOG_INFO("tyring to connect again in %d seconds", THINGER_RECONNECT_SECONDS);
             async_timer_.set_callback([this]{
                 // stop async timer
                 async_timer_.stop();
@@ -164,7 +164,7 @@ namespace thinger::iotmp{
 
             auto available = socket_->available();
             if(available){
-                //LOG_F(INFO, "received data: %zu", available);
+                //LOG("received data: %zu", available);
                 do{
                     auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
                     iotmp::handle(timestamp, true);
@@ -209,5 +209,9 @@ namespace thinger::iotmp{
             notify_state(THINGER_AUTHENTICATING);
             authenticate();
         });
+    }
+
+    bool client::connected() const{
+        return socket_->is_open() && authenticated_;
     }
 }

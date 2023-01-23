@@ -21,14 +21,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "thinger/iotmp/core/pson.h"
-#include "thinger/asio/workers.hpp"
-#include "thinger/util/logger.hpp"
-#include "thinger/iotmp/client.hpp"
-#include "thinger/iotmp/extensions/cmd/cmd.hpp"
-#include "thinger/iotmp/extensions/terminal/terminal.hpp"
-#include "thinger/iotmp/extensions/proxy/proxy.hpp"
-#include "thinger/iotmp/extensions/version/version.hpp"
+#include "iotmp/core/pson.h"
+#include "asio/workers.hpp"
+#include "util/logger.hpp"
+#include "iotmp/client.hpp"
+#include "iotmp/extensions/cmd/cmd.hpp"
+#include "iotmp/extensions/terminal/terminal.hpp"
+#include "iotmp/extensions/proxy/proxy.hpp"
+#include "iotmp/extensions/version/version.hpp"
 
 using namespace protoson;
 

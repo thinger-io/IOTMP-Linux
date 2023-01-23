@@ -46,6 +46,7 @@ namespace thinger::iotmp{
         virtual ~client() = default;
 
         void set_credentials(const std::string& user, const std::string& device, const std::string& device_credential);
+        bool connected() const;
         void start();
         void stop();
 
