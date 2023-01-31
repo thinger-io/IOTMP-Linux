@@ -9,7 +9,7 @@ namespace thinger::iotmp{
     class iotmp;
 
     struct stream{
-        iotmp_resource* resource   = nullptr;
+        iotmp_resource* resource     = nullptr;
         unsigned int interval        = 0;
         unsigned long last_streaming = 0;
     };
@@ -22,9 +22,9 @@ namespace thinger::iotmp{
 
         iotmp_resource* find(uint16_t stream_id);
 
-        void start(uint16_t stream_id, iotmp_resource& resource, pson& path_params, pson& params, result_handler handler);
+        void start(uint16_t stream_id, iotmp_resource& resource, pson& path_params, pson& params, result_handler handler={});
 
-        void stop(uint16_t stream_id, iotmp_resource& resource, pson& params, result_handler handler);
+        void stop(uint16_t stream_id, iotmp_resource& resource, pson& params, result_handler handler={});
 
         void clear();
 

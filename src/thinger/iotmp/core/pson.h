@@ -646,11 +646,10 @@ namespace protoson {
 
     class pson_pair{
     private:
-        char* name_;
+        char* name_ = nullptr;
         pson value_;
     public:
-        pson_pair() : name_(nullptr){
-        }
+        pson_pair() = default;
 
         ~pson_pair(){
             pool.deallocate(name_);

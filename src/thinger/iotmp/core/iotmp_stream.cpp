@@ -38,7 +38,7 @@ namespace thinger::iotmp{
         if(resource.has_stream_handler()){
             //THINGER_LOG("[%u] calling stream handler", stream_id);
             resource.handle_stream(stream_id, path_params, params, true, std::move(handler));
-        }else{
+        }else if(handler){
             handler(true);
         }
     }
@@ -67,6 +67,7 @@ namespace thinger::iotmp{
     void iotmp_stream::clear() {
         pson params;
         for(auto it = stream_resources_.begin(); it.valid(); it.next()){
+            it.item().right.resource->set_stream_id(0);
             it.item().right.resource->handle_stream(it.item().left, empty, params, false, [](const exec_result& result){
 
             });

@@ -27,6 +27,7 @@
 #include "pson.h"
 #include "thinger_map.hpp"
 #include "iotmp_resource.hpp"
+#include "iotmp_server_event.hpp"
 #include "iotmp_message.hpp"
 #include "iotmp_encoder.hpp"
 #include "iotmp_decoder.hpp"
@@ -148,7 +149,7 @@ namespace thinger::iotmp{
         const char* device_id_;
         const char* device_password_;
         thinger_map<const char*, iotmp_resource> resources_;
-        thinger_map<const char*, iotmp_resource> topics_;
+        thinger_map<uint8_t, iotmp_server_event> events_;
 
 #ifdef THINGER_USE_FUNCTIONAL
         std::function<void(THINGER_STATE state)> state_listener_;
@@ -288,31 +289,30 @@ namespace thinger::iotmp{
             }
         }
 
-        void subscribe_resources(){
-            for(auto it = topics_.begin(); it.valid(); it.next()) {
-                const char *resource = it.item().left;
-                iotmp_resource &res = it.item().right;
-                iotmp_message start_stream(message::type::START_STREAM);
-                start_stream[message::start_stream::RESOURCE] = resource;
+        void initialize_streams(){
+            // iterate over all events
+            for(auto it = events_.begin(); it.valid(); it.next()){
+                iotmp_server_event &res = it.item().right;
+                iotmp_message request(message::type::START_STREAM);
+                request[message::start_stream::RESOURCE] = res.get_resource();
+                request[message::start_stream::PARAMETERS].swap(res.get_params());
 
-                start_stream[message::start_stream::PARAMETERS]["type"] = "mqtt";
-                pson_array& scopes = start_stream[message::start_stream::PARAMETERS]["scopes"];
-
-                if(res.get_io_type() == iotmp_resource::input_wrapper) {
-                    scopes.add("subscribe");
-                } else if (res.get_io_type() == iotmp_resource::output_wrapper) {
-                    scopes.add("publish");
-                }else{
-                    // skip resources that does not provide an input or output
-                    continue;
-                }
-
-                if (send_message_with_ack(start_stream)) {
+                // try to start the stream
+                pson response_data;
+                if(send_message(request, response_data)){
                     static pson dummy;
-                    streams_.start(start_stream.get_stream_id(), res, dummy, start_stream[message::start_stream::PARAMETERS], [](const exec_result&){
 
-                    });
+                    // initialize stream
+                    streams_.start(request.get_stream_id(), res, dummy, request[message::stream::PARAMETERS]);
+
+                    if(!response_data.is_empty()){
+                        iotmp_message req(message::type::RUN);
+                        req[message::run::PAYLOAD].swap(response_data);
+                        iotmp_message response(message::type::OK);
+                        res.run_resource(req, response);
+                    }
                 }
+                res.get_params().swap(request[message::stream::PARAMETERS]);
             }
         }
 
@@ -341,8 +341,45 @@ namespace thinger::iotmp{
             return resources_[path](path);
         }
 
-        iotmp_resource& topic(const char* path){
-            return topics_[path](path);
+        iotmp_resource& topic_publish_stream(const char* topic, uint8_t qos=0, bool retained=false){
+            auto& event = events_[events_.size()+1];
+            event.set_resource(server::SUBSCRIBE_EVENT);
+            auto& params = event.get_params();
+            params["event"] = "device_topic_publish";
+            params["scope"] = "publish";
+            params["topic"] = topic;
+            if(qos) params["qos"] = qos;
+            if(retained) params["retained"] = retained;
+            return event;
+        }
+
+        iotmp_resource& topic_subscribe_stream(const char* topic, uint8_t qos=0){
+            auto& event = events_[events_.size()+1];
+            event.set_resource(server::SUBSCRIBE_EVENT);
+            auto& params = event.get_params();
+            params["event"] = "device_topic_publish";
+            params["scope"] = "subscribe";
+            params["topic"] = topic;
+            if(qos) params["qos"] = qos;
+            return event;
+        }
+
+        iotmp_resource& property_stream(const char* property, bool fetch_at_subscription=false){
+            auto& event = events_[events_.size()+1];
+            event.set_resource(server::SUBSCRIBE_EVENT);
+            auto& params = event.get_params();
+            params["event"] = "device_property_update";
+            if(fetch_at_subscription) params["current"] = true;
+            params["filters"]["property"] = property;
+            return event;
+        }
+
+        iotmp_resource& event_subscribe(const char* event_name){
+            auto& event = events_[events_.size()+1];
+            event.set_resource(server::SUBSCRIBE_EVENT);
+            auto& params = event.get_params();
+            params["event"] = event_name;
+            return event;
         }
 
         bool lock_sync(const char* sync_identifier,
@@ -619,10 +656,7 @@ namespace thinger::iotmp{
          * @return true if there was some external process listening for this resource and the resource was transmitted
          */
         bool stop_stream(iotmp_resource& resource){
-            if(resource.stream_enabled()){
-                return stop_stream(resource.get_stream_id());
-            }
-            return false;
+            return resource.stream_enabled() && stop_stream(resource.get_stream_id());
         }
 
         /**

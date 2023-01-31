@@ -146,6 +146,7 @@ namespace thinger::iotmp{
             WRITE_BUCKET                = 0X05,
             LOCK_SYNC                   = 0X06,
             UNLOCK_SYNC                 = 0X07,
+            SUBSCRIBE_EVENT             = 0x08
         };
     }
 

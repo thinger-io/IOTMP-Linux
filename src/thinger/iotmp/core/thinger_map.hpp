@@ -56,6 +56,14 @@ namespace thinger::iotmp{
 
     public:
 
+        size_t size(){
+            size_t size = 0;
+            for(auto it=protoson::pson_container<map_entry<K, V>>::begin(); it.valid(); it.next()){
+                ++size;
+            }
+            return size;
+        }
+
         typename protoson::pson_container<map_entry<K, V>>::iterator find_it(K key) const{
             for(auto it=protoson::pson_container<map_entry<K, V>>::begin(); it.valid(); it.next()){
                 if(equal(it.item().left, key)) return it;

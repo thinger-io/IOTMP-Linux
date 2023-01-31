@@ -441,14 +441,15 @@ namespace thinger::iotmp{
         /**
          * Establish a function without input or output parameters
          */
-        void operator=(std::function<void()> run_function){
+        iotmp_resource& operator=(std::function<void()> run_function){
             set_function(run_function);
+            return *this;
         }
 
         /**
          * Establish a function without input or output parameters
          */
-        void set_function(std::function<void()> run_function){
+        iotmp_resource& set_function(std::function<void()> run_function){
             io_type_ = run;
             callback_.run_ = run_function;
 #ifdef THINGER_USE_LOCAL_HTTPLIB
@@ -460,13 +461,15 @@ namespace thinger::iotmp{
                 });
             }
 #endif
+            return *this;
         }
 
         /**
          * Establish a function with input parameters
          */
-        void operator=(std::function<void(input&)> in_function){
+        iotmp_resource& operator=(std::function<void(input&)> in_function){
             set_input(in_function);
+            return *this;
         }
 
         bool matches(const char* res_path, const char* req_path, pson& matches){
@@ -497,7 +500,7 @@ namespace thinger::iotmp{
         /**
          * Establish a function with input parameters
          */
-        void set_input(std::function<void(input&)> in_function){
+        iotmp_resource& set_input(std::function<void(input&)> in_function){
             io_type_ = input_wrapper;
             callback_.input_ = in_function;
 
@@ -537,20 +540,21 @@ namespace thinger::iotmp{
                 });
             }
 #endif
-
+            return *this;
         }
 
         /**
          * Establish a function that only generates an output
          */
-        void operator=(std::function<void(output&)> out_function){
+        iotmp_resource & operator=(std::function<void(output&)> out_function){
             set_output(out_function);
+            return *this;
         }
 
         /**
          * Establish a function that only generates an output
          */
-        void set_output(std::function<void(output&)> out_function){
+        iotmp_resource & set_output(std::function<void(output&)> out_function){
             io_type_ = output_wrapper;
             callback_.output_ = out_function;
 
@@ -585,19 +589,21 @@ namespace thinger::iotmp{
             }
 #endif
 
+            return *this;
         }
 
         /**
          * Establish a function that can receive input parameters and generate an output
          */
-        void operator=(std::function<void(input& in, output& out)> input_output_function){
+        iotmp_resource& operator=(std::function<void(input& in, output& out)> input_output_function){
             set_input_output(input_output_function);
+            return *this;
         }
 
         /**
          * Establish a function that can receive input parameters and generate an output
          */
-        void set_input_output(std::function<void(input& in, output& out)> input_output_function){
+        iotmp_resource& set_input_output(std::function<void(input& in, output& out)> input_output_function){
             io_type_ = input_output_wrapper;
             callback_.input_output_ = input_output_function;
 
@@ -652,7 +658,9 @@ namespace thinger::iotmp{
                     }
                 });
             }
-#endif 
+#endif
+
+            return *this;
 
         }
 

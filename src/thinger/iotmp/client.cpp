@@ -63,7 +63,7 @@ namespace thinger::iotmp{
             async_timer_.start();
 
             // subscribe to resources
-            iotmp::subscribe_resources();
+            iotmp::initialize_streams();
         }else{
             notify_state(THINGER_AUTH_FAILED);
             disconnected();
