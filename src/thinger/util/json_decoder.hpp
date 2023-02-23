@@ -27,7 +27,7 @@
 #include <stdexcept>
 #include <string>
 #include <cmath>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 #include "../iotmp/core/pson.h"
 
 namespace nlohmann
@@ -227,7 +227,7 @@ namespace protoson{
 
         static bool to_json(pson& pson, nlohmann::json& json){
             try{
-                nlohmann::to_json(pson, json);
+                to_json(pson, json);
             }catch(...){
                 return false;
             }

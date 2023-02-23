@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.10...3.21)
 project(thinger_iotmp_linux_client)
 
 # set package version
@@ -10,6 +10,18 @@ set(VERSION_PATCH 1)
 add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
 add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
+
+##
+## MAIN_PROJECT CHECK
+## determine if nlohmann_json is built as a subproject (using add_subdirectory) or if it is the main project
+##
+set(MAIN_PROJECT ON)
+if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    set(MAIN_PROJECT ON)
+endif()
+option(IOTMP_Install "Install CMake targets during install step." ${MAIN_PROJECT})
+
+set(THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME               ${PROJECT_NAME})
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
@@ -29,7 +41,7 @@ include_directories("src/loguru")
 OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 
 # OpenSSL
-set(OPENSSL_USE_STATIC_LIBS TRUE)
+#set(OPENSSL_USE_STATIC_LIBS TRUE)
 
 if (APPLE)
     # This is a bug in CMake that causes it to prefer the system version over
@@ -91,10 +103,20 @@ file(GLOB_RECURSE SOURCE_FILES
     "src/*.c"
 )
 
-
-if(APPLE)
+if (IOTMP_Install)
+add_library(${THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME} INTERFACE)
+add_library(${PROJECT_NAME}::${THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME} ALIAS ${THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME})
+message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_BUILD_DIR}")
+message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_INCLUDE_INSTALL_DIR}")
+    install(
+        DIRECTORY ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_BUILD_DIR}
+        DESTINATION ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_INSTALL_DIR}
+    )
 
 else()
+  if(APPLE)
+
+  else()
     # generate a static binary
     #SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static -pthread")
 
@@ -103,16 +125,19 @@ else()
     # strip binary
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
-endif()
+  endif()
 
-add_executable(thinger ${SOURCE_FILES})
+  add_executable(thinger ${SOURCE_FILES})
 
-if(APPLE)
+  if(APPLE)
     # use this options to test with sanitizer
     add_definitions(-DBOOST_LOG_DYN_LINK=1)
     list(APPEND TEST_OPTIONS -fsanitize=address -fno-omit-frame-pointer -fsanitize-recover=address -g)
     target_compile_options(thinger PRIVATE "$<$<CONFIG:DEBUG>:${TEST_OPTIONS}>")
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+  endif()
+
+  target_link_libraries(thinger ${ADDITIONAL_LIBS})
 endif()
 
-target_link_libraries(thinger ${ADDITIONAL_LIBS})
+

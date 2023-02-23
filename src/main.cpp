@@ -157,6 +157,10 @@ int main(int argc, char *argv[])
         }
     });
 
+    client["sum"] = [](iotmp::output& out){
+        out["result"] = 2;
+    };
+
     // start client
     client.start();
 
