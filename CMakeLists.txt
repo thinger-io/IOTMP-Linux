@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10...3.21)
-project(thinger_iotmp_linux_client)
+project(iotmp_linux)
 
 # set package version
 set(VERSION_MAJOR 0)
@@ -11,17 +11,20 @@ add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
 add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
-##
-## MAIN_PROJECT CHECK
-## determine if nlohmann_json is built as a subproject (using add_subdirectory) or if it is the main project
-##
-set(MAIN_PROJECT ON)
-if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    set(MAIN_PROJECT ON)
+# Check if iotmp_linux is being via add_subdirectory
+#set(IOTMP_LINUX_MASTER_PROJECT ON)
+if(NOT DEFINED IOTMP_LINUX_MASTER_PROJECT)
+  if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    set(IOTMP_LINUX_MASTER_PROJECT ON)
+  else()
+    set(IOTMP_LINUX_MASTER_PROJECT OFF)
+  endif()
 endif()
-option(IOTMP_Install "Install CMake targets during install step." ${MAIN_PROJECT})
 
-set(THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME               ${PROJECT_NAME})
+# install options
+option(IOTMP_LINUX_INSTALL "Generate the install target" ${IOTMP_LINUX_MASTER_PROJECT})
+
+#set(THINGER_IOTMP_TARGET_NAME               ${PROJECT_NAME})
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
@@ -103,16 +106,34 @@ file(GLOB_RECURSE SOURCE_FILES
     "src/*.c"
 )
 
-if (IOTMP_Install)
-add_library(${THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME}/ SHARED src/thinger)
-target_include_directories(${THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-#add_library(${PROJECT_NAME}::${THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME} ALIAS ${THINGER_IOTMP_LINUX_CLIENT_TARGET_NAME})
-message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_BUILD_DIR}")
-message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_INCLUDE_INSTALL_DIR}")
-    install(
-        DIRECTORY ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_BUILD_DIR}
-        DESTINATION ${THINGER_IOTMP_LINUX_CLIENT_INCLUDE_INSTALL_DIR}
-    )
+if(IOTMP_LINUX_BUILD_SHARED OR BUILD_SHARED_LIBS)
+    add_library(iotmp_linux SHARED ${SOURCE_FILES} ${IOTMP_LINUX_ALL_HEADERS})
+    target_compile_definitions(iotmp_linux PUBLIC IOTMP_LINUX_SHARED_LIB)
+else()
+    add_library(iotmp_linux STATIC ${SOURCE_FILES} ${IOTMP_LINUX_ALL_HEADERS})
+endif()
+
+add_library(thinger::thinger ALIAS iotmp_linux)
+target_include_directories(iotmp_linux ${IOTMP_LINUX_INCLUDES_LEVEL} PUBLIC "$BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src/thinger"
+                                      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+
+target_link_libraries(iotmp_linux ${ADDITIONAL_LIBS})
+
+if (IOTMP_LINUX_INSTALL)
+  message(STATUS "Generating install")
+
+  #add_library(${PROJECT_NAME}::${THINGER_IOTMP_TARGET_NAME} ALIAS ${THINGER_IOTMP_TARGET_NAME})
+  message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_BUILD_DIR}")
+  message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_INCLUDE_INSTALL_DIR}")
+
+  install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+  install(
+    TARGETS iotmp_linux
+    EXPORT iotmp_linux
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
 
 else()
   if(APPLE)
