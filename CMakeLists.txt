@@ -25,6 +25,8 @@ endif()
 option(IOTMP_LINUX_INSTALL "Generate the install target" ${IOTMP_LINUX_MASTER_PROJECT})
 
 #set(THINGER_IOTMP_TARGET_NAME               ${PROJECT_NAME})
+#set(IOTMP_LINUX_CMAKE_CONFIG_DIR          "${CMAKE_CURRENT_BINARY_DIR}")
+#set(IOTMP_LINUX_CMAKE_PROJECT_TARGETS_FILE "${IOTMP_LINUX_CMAKE_CONFIG_DIR}/${PROJECT_NAME}Targets.cmake")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
@@ -32,7 +34,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)
 if(COMPILER_SUPPORTS_CXX17)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++17support. Please use a different C++ compiler.")
 endif()
@@ -122,6 +124,9 @@ target_link_libraries(iotmp_linux ${ADDITIONAL_LIBS})
 if (IOTMP_LINUX_INSTALL)
   message(STATUS "Generating install")
 
+  set(config_targets_file "iotmpLinuxConfigTargets.cmake")
+  set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/iotmp_linux")
+
   #add_library(${PROJECT_NAME}::${THINGER_IOTMP_TARGET_NAME} ALIAS ${THINGER_IOTMP_TARGET_NAME})
   message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_BUILD_DIR}")
   message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_INCLUDE_INSTALL_DIR}")
@@ -134,6 +139,22 @@ if (IOTMP_LINUX_INSTALL)
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   )
+
+  # ---------------------------------------------------------------------------------------
+  # Install CMake config files
+  # ---------------------------------------------------------------------------------------
+  export(
+    TARGETS thinger
+    NAMESPACE thinger::
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
+  install(EXPORT spdlog DESTINATION ${export_dest_dir} NAMESPACE spdlog:: FILE ${config_targets_file})
+
+#  include(CMakePackageConfigHelpers)
+#  configure_package_config_file("${project_config_in}" "${project_config_out}"
+#      INSTALL_DESTINATION ${export_dest_dir})
+
+#  write_basic_package_version_file("${version_config_file}" COMPATIBILITY SameMajorVersion)
+#  install(FILES "${project_config_out}" "${version_config_file}" DESTINATION "${export_dest_dir}")
 
 else()
   if(APPLE)
