@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10...3.21)
-project(iotmp_linux)
+project(thinger)
 
 # set package version
 set(VERSION_MAJOR 0)
@@ -11,22 +11,20 @@ add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
 add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
-# Check if iotmp_linux is being via add_subdirectory
-set(IOTMP_LINUX_MASTER_PROJECT ON)
-if(NOT DEFINED IOTMP_LINUX_MASTER_PROJECT)
+# Check if thinger is being via add_subdirectory
+set(THINGER_MASTER_PROJECT ON)
+if(NOT DEFINED THINGER_MASTER_PROJECT)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    set(IOTMP_LINUX_MASTER_PROJECT ON)
+    set(THINGER_MASTER_PROJECT ON)
   else()
-    set(IOTMP_LINUX_MASTER_PROJECT OFF)
+    set(THINGER_MASTER_PROJECT OFF)
   endif()
 endif()
 
 # install options
-option(IOTMP_LINUX_INSTALL "Generate the install target" ${IOTMP_LINUX_MASTER_PROJECT})
+option(THINGER_INSTALL "Generate the install target" ${THINGER_MASTER_PROJECT})
 
 #set(THINGER_IOTMP_TARGET_NAME               ${PROJECT_NAME})
-#set(IOTMP_LINUX_CMAKE_CONFIG_DIR          "${CMAKE_CURRENT_BINARY_DIR}")
-#set(IOTMP_LINUX_CMAKE_PROJECT_TARGETS_FILE "${IOTMP_LINUX_CMAKE_CONFIG_DIR}/${PROJECT_NAME}Targets.cmake")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
@@ -108,24 +106,26 @@ file(GLOB_RECURSE SOURCE_FILES
     "src/*.c"
 )
 
-if(IOTMP_LINUX_BUILD_SHARED OR BUILD_SHARED_LIBS)
-    add_library(iotmp_linux SHARED ${SOURCE_FILES} ${IOTMP_LINUX_ALL_HEADERS})
-    target_compile_definitions(iotmp_linux PUBLIC IOTMP_LINUX_SHARED_LIB)
+if(THINGER_BUILD_SHARED OR BUILD_SHARED_LIBS)
+    add_library(thinger SHARED ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
+    target_compile_definitions(thinger PUBLIC THINGER_SHARED_LIB)
 else()
-    add_library(iotmp_linux STATIC ${SOURCE_FILES} ${IOTMP_LINUX_ALL_HEADERS})
+    add_library(thinger STATIC ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
 endif()
 
-add_library(thinger::thinger ALIAS iotmp_linux)
-target_include_directories(iotmp_linux ${IOTMP_LINUX_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src"
+add_library(thinger::thinger ALIAS thinger)
+set(THINGER_INCLUDES_LEVEL "")
+target_compile_definitions(thinger PUBLIC THINGER_COMPILED_LIB)
+target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
-target_link_libraries(iotmp_linux ${ADDITIONAL_LIBS})
+target_link_libraries(thinger ${ADDITIONAL_LIBS})
 
-if (IOTMP_LINUX_INSTALL)
+if (THINGER_INSTALL)
   message(STATUS "Generating install")
 
   set(config_targets_file "iotmpLinuxConfigTargets.cmake")
-  set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/iotmp_linux")
+  set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/thinger")
 
   #add_library(${PROJECT_NAME}::${THINGER_IOTMP_TARGET_NAME} ALIAS ${THINGER_IOTMP_TARGET_NAME})
   message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_BUILD_DIR}")
@@ -133,8 +133,8 @@ if (IOTMP_LINUX_INSTALL)
 
   install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
   install(
-    TARGETS iotmp_linux
-    EXPORT iotmp_linux
+    TARGETS thinger
+    EXPORT thinger
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -144,10 +144,10 @@ if (IOTMP_LINUX_INSTALL)
   # Install CMake config files
   # ---------------------------------------------------------------------------------------
   export(
-    TARGETS iotmp_linux
+    TARGETS thinger
     NAMESPACE thinger::
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
-#  install(EXPORT iotmp_linux DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
+  install(EXPORT thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
 
 #  include(CMakePackageConfigHelpers)
 #  configure_package_config_file("${project_config_in}" "${project_config_out}"
