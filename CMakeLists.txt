@@ -114,7 +114,7 @@ else()
 endif()
 
 add_library(thinger::thinger ALIAS iotmp_linux)
-target_include_directories(iotmp_linux ${IOTMP_LINUX_INCLUDES_LEVEL} PUBLIC "$BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src/thinger"
+target_include_directories(iotmp_linux ${IOTMP_LINUX_INCLUDES_LEVEL} PUBLIC "$BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include"
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
 target_link_libraries(iotmp_linux ${ADDITIONAL_LIBS})
@@ -126,7 +126,7 @@ if (IOTMP_LINUX_INSTALL)
   message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_BUILD_DIR}")
   message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_INCLUDE_INSTALL_DIR}")
 
-  install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+  install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
   install(
     TARGETS iotmp_linux
     EXPORT iotmp_linux
