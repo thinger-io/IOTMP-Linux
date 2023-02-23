@@ -12,7 +12,7 @@ add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
 # Check if iotmp_linux is being via add_subdirectory
-#set(IOTMP_LINUX_MASTER_PROJECT ON)
+set(IOTMP_LINUX_MASTER_PROJECT ON)
 if(NOT DEFINED IOTMP_LINUX_MASTER_PROJECT)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(IOTMP_LINUX_MASTER_PROJECT ON)
@@ -116,7 +116,7 @@ else()
 endif()
 
 add_library(thinger::thinger ALIAS iotmp_linux)
-target_include_directories(iotmp_linux ${IOTMP_LINUX_INCLUDES_LEVEL} PUBLIC "$BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include"
+target_include_directories(iotmp_linux ${IOTMP_LINUX_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src"
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
 target_link_libraries(iotmp_linux ${ADDITIONAL_LIBS})
@@ -131,7 +131,7 @@ if (IOTMP_LINUX_INSTALL)
   message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_BUILD_DIR}")
   message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_INCLUDE_INSTALL_DIR}")
 
-  install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+  install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
   install(
     TARGETS iotmp_linux
     EXPORT iotmp_linux
@@ -144,10 +144,10 @@ if (IOTMP_LINUX_INSTALL)
   # Install CMake config files
   # ---------------------------------------------------------------------------------------
   export(
-    TARGETS thinger
+    TARGETS iotmp_linux
     NAMESPACE thinger::
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
-  install(EXPORT spdlog DESTINATION ${export_dest_dir} NAMESPACE spdlog:: FILE ${config_targets_file})
+#  install(EXPORT iotmp_linux DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
 
 #  include(CMakePackageConfigHelpers)
 #  configure_package_config_file("${project_config_in}" "${project_config_out}"
