@@ -112,6 +112,8 @@ if(THINGER_BUILD_SHARED OR BUILD_SHARED_LIBS)
 else()
     add_library(thinger STATIC ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
 endif()
+target_compile_definitions(thinger PRIVATE -DTHINGER_SERVER="iot.thinger.io")
+target_compile_definitions(thinger PRIVATE -DTHINGER_ENABLE_STREAM_LISTENER)
 
 add_library(thinger::thinger ALIAS thinger)
 set(THINGER_INCLUDES_LEVEL "")
@@ -126,10 +128,6 @@ if (THINGER_INSTALL)
 
   set(config_targets_file "iotmpLinuxConfigTargets.cmake")
   set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/thinger")
-
-  #add_library(${PROJECT_NAME}::${THINGER_IOTMP_TARGET_NAME} ALIAS ${THINGER_IOTMP_TARGET_NAME})
-  message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_BUILD_DIR}")
-  message(STATUS "thinger_iotmp_linux_client_include_build_dir ${THINGER_IOTMP_INCLUDE_INCLUDE_INSTALL_DIR}")
 
   install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
   install(
@@ -148,13 +146,6 @@ if (THINGER_INSTALL)
     NAMESPACE thinger::
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
   install(EXPORT thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
-
-#  include(CMakePackageConfigHelpers)
-#  configure_package_config_file("${project_config_in}" "${project_config_out}"
-#      INSTALL_DESTINATION ${export_dest_dir})
-
-#  write_basic_package_version_file("${version_config_file}" COMPATIBILITY SameMajorVersion)
-#  install(FILES "${project_config_out}" "${version_config_file}" DESTINATION "${export_dest_dir}")
 
 else()
   if(APPLE)
