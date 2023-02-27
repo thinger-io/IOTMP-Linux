@@ -12,7 +12,7 @@ add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
 # Check if thinger is being via add_subdirectory
-set(THINGER_MASTER_PROJECT ON)
+#set(THINGER_MASTER_PROJECT ON)
 if(NOT DEFINED THINGER_MASTER_PROJECT)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(THINGER_MASTER_PROJECT ON)
@@ -20,9 +20,6 @@ if(NOT DEFINED THINGER_MASTER_PROJECT)
     set(THINGER_MASTER_PROJECT OFF)
   endif()
 endif()
-
-# install options
-option(THINGER_INSTALL "Generate the install target" ${THINGER_MASTER_PROJECT})
 
 #set(THINGER_IOTMP_TARGET_NAME               ${PROJECT_NAME})
 
@@ -81,7 +78,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     list(APPEND ADDITIONAL_LIBS "stdc++fs")
 endif()
 
-
 # Add 'util' lib for supporting forkpty
 list(APPEND ADDITIONAL_LIBS util)
 
@@ -106,27 +102,27 @@ file(GLOB_RECURSE SOURCE_FILES
     "src/*.c"
 )
 
-if(THINGER_BUILD_SHARED OR BUILD_SHARED_LIBS)
-    add_library(thinger SHARED ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
-    target_compile_definitions(thinger PUBLIC THINGER_SHARED_LIB)
-else()
-    add_library(thinger STATIC ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
-endif()
-target_compile_definitions(thinger PUBLIC -DTHINGER_SERVER="iot.thinger.io")
-target_compile_definitions(thinger PUBLIC -DTHINGER_ENABLE_STREAM_LISTENER)
-
-add_library(thinger::thinger ALIAS thinger)
-set(THINGER_INCLUDES_LEVEL "")
-target_compile_definitions(thinger PUBLIC THINGER_COMPILED_LIB)
-target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
-                                      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-
-target_link_libraries(thinger ${ADDITIONAL_LIBS})
-
-if (THINGER_INSTALL)
+if (NOT THINGER_MASTER_PROJECT)
   message(STATUS "Generating install")
 
-  set(config_targets_file "iotmpLinuxConfigTargets.cmake")
+  if(THINGER_BUILD_SHARED OR BUILD_SHARED_LIBS)
+    add_library(thinger SHARED ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
+    target_compile_definitions(thinger PUBLIC THINGER_SHARED_LIB)
+  else()
+    add_library(thinger STATIC ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
+  endif()
+  target_compile_definitions(thinger PUBLIC -DTHINGER_SERVER="iot.thinger.io")
+  target_compile_definitions(thinger PUBLIC -DTHINGER_ENABLE_STREAM_LISTENER)
+
+  add_library(thinger::thinger ALIAS thinger)
+  set(THINGER_INCLUDES_LEVEL "")
+  target_compile_definitions(thinger PUBLIC THINGER_COMPILED_LIB)
+  target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
+                                      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+
+  target_link_libraries(thinger ${ADDITIONAL_LIBS})
+
+  set(config_targets_file "thingerConfigTargets.cmake")
   set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/thinger")
 
   install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
