@@ -18,19 +18,19 @@ namespace thinger::asio{
 
     }
 
-	void ssl_socket::close() {
-		//if(is_open()){
-			// graceful SSL disconnect (do not call shutdown over boost asio, as it will wait for remote endpoint confirmation)
-		//	SSL_shutdown(ssl_stream_.native_handle());
-		//}
+    void ssl_socket::close() {
+        //if(is_open()){
+            // graceful SSL disconnect (do not call shutdown over boost asio, as it will wait for remote endpoint confirmation)
+            //	SSL_shutdown(ssl_stream_.native_handle());
+        //}
 
-		// close socket
-		tcp_socket::close();
+        // close socket
+        tcp_socket::close();
 
-		// clear ssl session to allow reusing socket (if necessary)
-		// From SSL_clear If a session is still open, it is considered bad and will be removed from the session cache, as required by RFC2246
-		SSL_clear(ssl_stream_.native_handle());
-	}
+        // clear ssl session to allow reusing socket (if necessary)
+        // From SSL_clear If a session is still open, it is considered bad and will be removed from the session cache, as required by RFC2246
+        SSL_clear(ssl_stream_.native_handle());
+    }
 
     ssl_socket::~ssl_socket() {
         LOG_LEVEL(3, "releasing ssl connection");
@@ -44,7 +44,7 @@ namespace thinger::asio{
         if(!host.empty()){
             // add support for SNI
             if(!SSL_set_tlsext_host_name(ssl_stream_.native_handle(), host.c_str())){
-            	LOG_ERROR("SSL_set_tlsext_host_name failed. SNI will fail");
+                LOG_ERROR("SSL_set_tlsext_host_name failed. SNI will fail");
             }
 
             // set verify parameters for SSL

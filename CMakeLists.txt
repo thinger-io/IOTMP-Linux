@@ -73,6 +73,22 @@ if(Boost_FOUND)
     list(APPEND ADDITIONAL_LIBS ${Boost_LIBRARIES})
 endif()
 
+# fmt
+find_package(fmt)
+if(fmt_FOUND)
+  include_directories(${fmt_INCLUDE_DIRS})
+  list(APPEND ADDITIONAL_LIBS fmt::fmt)
+endif()
+
+# spdlog
+find_package(spdlog)
+if(spdlog_FOUND)
+  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+  #include_directories(${spdlog_INCLUDE_DIRS})
+  ##target_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+  #list(APPEND ADDITIONAL_LIBS ${spdlog_LIBRARIES})
+endif()
+
 # required for GCC < 9.0
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     list(APPEND ADDITIONAL_LIBS "stdc++fs")
@@ -101,6 +117,22 @@ file(GLOB_RECURSE SOURCE_FILES
     "src/*.cc"
     "src/*.c"
 )
+
+# spdlog
+#include(FetchContent)
+#FetchContent_Declare(
+#  spdlog
+#  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+#  GIT_TAG v1.10.0
+#)
+
+#FetchContent_GetProperties(spdlog)
+#if (NOT spdlog_POPULATED)
+#  FetchContent_Populate(spdlog)
+#  add_subdirectory(${spdlog_SOURCE_DIR} ${spdlog_BINARY_DIR} EXCLUDE_FROM_ALL)
+#  target_compile_definitions(spdlog PUBLIC SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+#  list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
+#endif()
 
 if (NOT THINGER_MASTER_PROJECT)
   message(STATUS "Generating install")
@@ -169,5 +201,3 @@ else()
 
   target_link_libraries(thinger ${ADDITIONAL_LIBS})
 endif()
-
-

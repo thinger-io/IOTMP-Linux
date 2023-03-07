@@ -141,7 +141,7 @@ namespace thinger::iotmp{
         authenticated_ = false;
         if(running_ && !connecting_){
             async_timer_.set_timeout(std::chrono::seconds{THINGER_RECONNECT_SECONDS});
-            LOG_INFO("tyring to connect again in %d seconds", THINGER_RECONNECT_SECONDS);
+            LOG_INFO("trying to connect again in %d seconds", THINGER_RECONNECT_SECONDS);
             async_timer_.set_callback([this]{
                 // stop async timer
                 async_timer_.stop();

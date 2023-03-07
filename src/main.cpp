@@ -32,6 +32,10 @@
 #define DEFAULT_DEVICE              ""
 #define DEFAULT_CREDENTIAL          ""
 
+#ifdef THINGER_LOG_SPDLOG
+    int spdlog_verbosity_level;
+#endif
+
 int main(int argc, char *argv[])
 {
     // initialize
@@ -101,7 +105,11 @@ int main(int argc, char *argv[])
     }
 
     // initialize logging library
-#ifdef THINGER_LOG_LOGURU
+#ifdef THINGER_LOG_SPDLOG
+  spdlog_verbosity_level = verbosity_level;
+  spdlog::default_logger()->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [thread %t] [%^%l%$] [%s:%#] %v");
+  spdlog::set_level(spdlog::level::trace);
+#elif defined(THINGER_LOG_LOGURU)
     loguru::init(argc, argv, {});
 #endif
 
