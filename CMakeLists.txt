@@ -12,7 +12,7 @@ add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
 # Check if thinger is being via add_subdirectory
-#set(THINGER_MASTER_PROJECT ON)
+#set(THINGER_MASTER_PROJECT OFF)
 if(NOT DEFINED THINGER_MASTER_PROJECT)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(THINGER_MASTER_PROJECT ON)
@@ -110,36 +110,22 @@ else()
     add_definitions(-DTHINGER_PORT=25204)
 endif()
 
-file(GLOB_RECURSE SOURCE_FILES
-    "src/*.hpp"
-    "src/*.h"
-    "src/*.cpp"
-    "src/*.cc"
-    "src/*.c"
-)
-
-# spdlog
-#include(FetchContent)
-#FetchContent_Declare(
-#  spdlog
-#  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-#  GIT_TAG v1.10.0
-#)
-
-#FetchContent_GetProperties(spdlog)
-#if (NOT spdlog_POPULATED)
-#  FetchContent_Populate(spdlog)
-#  add_subdirectory(${spdlog_SOURCE_DIR} ${spdlog_BINARY_DIR} EXCLUDE_FROM_ALL)
-#  target_compile_definitions(spdlog PUBLIC SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
-#  list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
-#endif()
-
 if (NOT THINGER_MASTER_PROJECT)
 
   message(STATUS "Generating install of IOTMP-Linux")
 
-  # Remove main.cpp file
-  list(REMOVE_ITEM SOURCE_FILES "src/main.cpp")
+  file(GLOB_RECURSE SOURCE_FILES
+    "src/thinger/*.hpp"
+    "src/thinger/*.h"
+    "src/thinger/*.cpp"
+    "src/thinger/*.cc"
+    "src/thinger/*.c"
+    "src/loguru/*.hpp"
+    "src/loguru/*.h"
+    "src/loguru/*.cpp"
+    "src/loguru/*.cc"
+    "src/loguru/*.c"
+  )
 
   if(THINGER_BUILD_SHARED OR BUILD_SHARED_LIBS)
     add_library(thinger SHARED ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
@@ -182,6 +168,14 @@ if (NOT THINGER_MASTER_PROJECT)
 else()
 
   message(STATUS "Generating binary of IOTMP-Linux")
+
+  file(GLOB_RECURSE SOURCE_FILES
+    "src/*.hpp"
+    "src/*.h"
+    "src/*.cpp"
+    "src/*.cc"
+    "src/*.c"
+  )
 
   if(APPLE)
 
