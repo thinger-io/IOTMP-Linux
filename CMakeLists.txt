@@ -135,7 +135,11 @@ file(GLOB_RECURSE SOURCE_FILES
 #endif()
 
 if (NOT THINGER_MASTER_PROJECT)
-  message(STATUS "Generating install")
+
+  message(STATUS "Generating install of IOTMP-Linux")
+
+  # Remove main.cpp file
+  list(REMOVE_ITEM SOURCE_FILES "src/main.cpp")
 
   if(THINGER_BUILD_SHARED OR BUILD_SHARED_LIBS)
     add_library(thinger SHARED ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
@@ -176,6 +180,9 @@ if (NOT THINGER_MASTER_PROJECT)
   install(EXPORT thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
 
 else()
+
+  message(STATUS "Generating binary of IOTMP-Linux")
+
   if(APPLE)
 
   else()
