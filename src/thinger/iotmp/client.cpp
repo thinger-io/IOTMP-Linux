@@ -23,20 +23,44 @@ namespace thinger::iotmp{
         device_password_ = device_credential;
     }
 
-    void client::start(){
-        io_service_.dispatch([this](){
-            if(running_) return;
+    void client::start(std::function<void(exec_result)> callback){
+        io_service_.dispatch([this, callback=std::move(callback)](){
+            if(running_){
+                if(callback) callback({false});
+                return;
+            }
             running_ = true;
+            if(callback){
+                callback({true});
+            }
             LOG_INFO("starting ASIO client...");
             connect();
         });
     }
 
-    void client::stop(){
-        if(!running_) return;
-        running_ = false;
-        LOG_INFO("stopping ASIO client...");
-        disconnected();
+    void client::stop(std::function<void(exec_result)> callback){
+        io_service_.dispatch([this, callback=std::move(callback)](){
+            if(!running_){
+                if(callback) callback({false});
+                return;
+            }
+            running_ = false;
+            if(callback) callback({true});
+            LOG_INFO("stopping ASIO client...");
+            disconnected();
+        });
+    }
+
+    bool client::run(std::function<bool()> callback){
+        std::promise<bool> p;
+        io_service_.dispatch([this, &p, callback=std::move(callback)](){
+            if(!connected()){
+                p.set_value(false);
+                return;
+            }
+            p.set_value(callback());
+        });
+        return p.get_future().get();
     }
 
     boost::asio::io_service& client::get_io_service(){

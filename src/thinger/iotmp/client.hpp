@@ -47,8 +47,9 @@ namespace thinger::iotmp{
 
         void set_credentials(const std::string& user, const std::string& device, const std::string& device_credential);
         bool connected() const;
-        void start();
-        void stop();
+        void start(std::function<void(exec_result)> callback = {});
+        void stop(std::function<void(exec_result)> callback = {});
+        bool run(std::function<bool()> callback);
 
         boost::asio::io_service& get_io_service();
 
