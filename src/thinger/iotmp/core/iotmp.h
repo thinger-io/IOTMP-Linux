@@ -294,7 +294,7 @@ namespace thinger::iotmp{
             for(auto it = events_.begin(); it.valid(); it.next()){
                 iotmp_server_event &res = it.item().right;
                 iotmp_message request(message::type::START_STREAM);
-                request[message::start_stream::RESOURCE] = res.get_resource();
+                request[message::start_stream::RESOURCE] = to_underlying(res.get_resource());
                 request[message::start_stream::PARAMETERS].swap(res.get_params());
 
                 // try to start the stream
@@ -343,7 +343,7 @@ namespace thinger::iotmp{
 
         iotmp_resource& topic_publish_stream(const char* topic, uint8_t qos=0, bool retained=false){
             auto& event = events_[events_.size()+1];
-            event.set_resource(server::SUBSCRIBE_EVENT);
+            event.set_resource(server::run::SUBSCRIBE_EVENT);
             auto& params = event.get_params();
             params["event"] = "device_topic_publish";
             params["scope"] = "publish";
@@ -355,7 +355,7 @@ namespace thinger::iotmp{
 
         iotmp_resource& topic_subscribe_stream(const char* topic, uint8_t qos=0){
             auto& event = events_[events_.size()+1];
-            event.set_resource(server::SUBSCRIBE_EVENT);
+            event.set_resource(server::run::SUBSCRIBE_EVENT);
             auto& params = event.get_params();
             params["event"] = "device_topic_publish";
             params["scope"] = "subscribe";
@@ -366,7 +366,7 @@ namespace thinger::iotmp{
 
         iotmp_resource& property_stream(const char* property, bool fetch_at_subscription=false){
             auto& event = events_[events_.size()+1];
-            event.set_resource(server::SUBSCRIBE_EVENT);
+            event.set_resource(server::run::SUBSCRIBE_EVENT);
             auto& params = event.get_params();
             params["event"] = "device_property_update";
             if(fetch_at_subscription) params["current"] = true;
@@ -376,7 +376,7 @@ namespace thinger::iotmp{
 
         iotmp_resource& event_subscribe(const char* event_name){
             auto& event = events_[events_.size()+1];
-            event.set_resource(server::SUBSCRIBE_EVENT);
+            event.set_resource(server::run::SUBSCRIBE_EVENT);
             auto& params = event.get_params();
             params["event"] = event_name;
             return event;
@@ -387,7 +387,7 @@ namespace thinger::iotmp{
                        unsigned long slots=1,
                        unsigned long timeout_seconds = 0){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::LOCK_SYNC;
+            message[message::run::RESOURCE] = to_underlying(server::run::LOCK_SYNC);
             message[message::run::PARAMETERS] = sync_identifier;
             if(strlen(lock_id)>0) message[message::run::PAYLOAD]["lock"] = lock_id;
             if(slots>1) message[message::run::PAYLOAD]["slots"] = slots;
@@ -397,7 +397,7 @@ namespace thinger::iotmp{
 
         bool unlock_sync(const char* sync_identifier, const char* lock_id){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::UNLOCK_SYNC;
+            message[message::run::RESOURCE] = to_underlying(server::run::UNLOCK_SYNC);
             message[message::run::PARAMETERS] = sync_identifier;
             message[message::run::PAYLOAD]["lock"] = lock_id;
             return send_message_with_ack(message);
@@ -411,7 +411,7 @@ namespace thinger::iotmp{
          */
         bool get_property(const char* property_identifier, protoson::pson& data){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::READ_DEVICE_PROPERTY;
+            message[message::run::RESOURCE] = to_underlying(server::run::READ_DEVICE_PROPERTY);
             message[message::run::PARAMETERS] = property_identifier;
             return send_message(message, data);
         }
@@ -425,7 +425,7 @@ namespace thinger::iotmp{
          */
         bool set_property(const char* property_identifier, pson& data, bool confirm_write=false){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::SET_DEVICE_PROPERTY;
+            message[message::run::RESOURCE] = to_underlying(server::run::SET_DEVICE_PROPERTY);
             message[message::run::PARAMETERS] = property_identifier;
             message[message::run::PAYLOAD].swap(data);
             return send_message_with_ack(message, confirm_write);
@@ -439,7 +439,7 @@ namespace thinger::iotmp{
          */
         bool call_device(const char* device_name, const char* resource_name, bool confirm_call=false){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::CALL_DEVICE;
+            message[message::run::RESOURCE] = to_underlying(server::run::CALL_DEVICE);
             pson_array& data = message[message::run::PARAMETERS];
             data.add(device_name).add(resource_name);
             return send_message_with_ack(message, confirm_call);
@@ -454,7 +454,7 @@ namespace thinger::iotmp{
         */
         bool call_device(const char* device_name, const char* resource_name, pson& data, bool confirm_call=false){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::CALL_DEVICE;
+            message[message::run::RESOURCE] = to_underlying(server::run::CALL_DEVICE);
             pson_array& params = message[message::run::PARAMETERS];
             params.add(device_name).add(resource_name);
             message[message::run::PAYLOAD].swap(data);
@@ -487,7 +487,7 @@ namespace thinger::iotmp{
          */
         bool call_endpoint(const char* endpoint_name, bool confirm_call=false){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::CALL_ENDPOINT;
+            message[message::run::RESOURCE] = to_underlying(server::run::CALL_ENDPOINT);
             message[message::run::PARAMETERS] = endpoint_name;
             return send_message_with_ack(message, confirm_call);
         }
@@ -500,7 +500,7 @@ namespace thinger::iotmp{
          */
         bool call_endpoint(const char* endpoint_name, pson& data, bool confirm_call=false){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::CALL_ENDPOINT;
+            message[message::run::RESOURCE] = to_underlying(server::run::CALL_ENDPOINT);
             message[message::run::PARAMETERS] = endpoint_name;
             message[message::run::PAYLOAD].swap(data);
             return send_message_with_ack(message, confirm_call);
@@ -541,7 +541,7 @@ namespace thinger::iotmp{
          */
         bool write_bucket(const char* bucket_id, pson& data, bool confirm_write=false){
             iotmp_message message(message::type::RUN);
-            message[message::run::RESOURCE] = server::WRITE_BUCKET;
+            message[message::run::RESOURCE] = to_underlying(server::run::WRITE_BUCKET);
             message[message::run::PARAMETERS] = bucket_id;
             message[message::run::PAYLOAD].swap(data);
             return send_message_with_ack(message, confirm_write);
