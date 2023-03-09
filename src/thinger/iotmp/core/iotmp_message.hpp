@@ -27,9 +27,16 @@
 #include "pson.h"
 #include "pson_to_json.hpp"
 #include "thinger_map.hpp"
+#include <type_traits>
 
 namespace thinger::iotmp{
 
+
+    template <typename E>
+    constexpr auto to_underlying(E e) noexcept
+    {
+        return static_cast<std::underlying_type_t<E>>(e);
+    }
 
     namespace message{
 
@@ -138,7 +145,8 @@ namespace thinger::iotmp{
     }
 
     namespace server{
-        enum run{
+        enum class run : uint8_t{
+            NONE                        = 0X00,
             READ_DEVICE_PROPERTY        = 0X01,
             SET_DEVICE_PROPERTY         = 0X02,
             CALL_DEVICE                 = 0X03,

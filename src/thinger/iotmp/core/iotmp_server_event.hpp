@@ -25,7 +25,7 @@ namespace thinger{
         }
 
     private:
-        iotmp::server::run resource_;
+        iotmp::server::run resource_ = iotmp::server::run::NONE;
         protoson::pson event_config_;
 
     };
