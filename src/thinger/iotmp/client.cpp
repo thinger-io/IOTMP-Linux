@@ -16,12 +16,33 @@ namespace thinger::iotmp{
         }
     }
 
-    void
-    client::set_credentials(const std::string& user, const std::string& device, const std::string& device_credential){
+    void client::set_credentials(const std::string& user, const std::string& device, const std::string& device_credential){
         username_ = user;
         device_id_ = device;
         device_password_ = device_credential;
     }
+
+    void client::set_hostname(const std::string& host){
+        hostname_ = host;
+        iotmp::set_host(hostname_.c_str());
+    }
+
+    const std::string& client::get_hostname() const{
+        return hostname_;
+    }
+
+    const std::string& client::get_user() const{
+        return username_;
+    }
+
+    const std::string& client::get_device() const{
+        return device_id_;
+    }
+
+    const std::string& client::get_credentials() const {
+        return device_password_;
+    }
+
 
     void client::start(std::function<void(exec_result)> callback){
         io_service_.dispatch([this, callback=std::move(callback)](){
