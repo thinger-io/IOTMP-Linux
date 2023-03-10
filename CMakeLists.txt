@@ -141,21 +141,21 @@ if (NOT THINGER_MASTER_PROJECT)
   target_compile_definitions(thinger PUBLIC THINGER_COMPILED_LIB)
   target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-
+# httplib
   if( TARGET httplib )
     #target_link_libraries(${PROJECT} PUBLIC httplib)
     message(STATUS "Adding httplib to thinger library")
     list(APPEND ADDITIONAL_LIBS hpptlib::httplib)
   endif()
-  target_link_libraries(${PROJECT} ${ADDITIONAL_LIBS})
+  target_link_libraries(thinger ${ADDITIONAL_LIBS})
 
   set(config_targets_file "thingerConfigTargets.cmake")
   set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/thinger")
 
   install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
   install(
-    TARGETS ${PROJECT}
-    EXPORT ${PROJECT}
+    TARGETS thinger
+    EXPORT thinger
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
