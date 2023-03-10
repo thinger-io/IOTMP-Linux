@@ -142,7 +142,7 @@ if (NOT THINGER_MASTER_PROJECT)
   target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 # httplib
-  if( TARGET httplib )
+  if( TARGET httplib::httplib )
     #target_link_libraries(${PROJECT} PUBLIC httplib)
     message(STATUS "Adding httplib to thinger library")
     list(APPEND ADDITIONAL_LIBS hpptlib::httplib)
