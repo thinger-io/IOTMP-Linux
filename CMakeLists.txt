@@ -143,9 +143,11 @@ if (NOT THINGER_MASTER_PROJECT)
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 # httplib
   if( TARGET httplib )
+    if ( TARGET nlohmann_json )
     #target_link_libraries(${PROJECT} PUBLIC httplib)
-    message(STATUS "Adding httplib to thinger library")
-    list(APPEND ADDITIONAL_LIBS hpptlib::httplib)
+    message(STATUS "Adding httplib and json to thinger library")
+    list(APPEND ADDITIONAL_LIBS hpptlib)
+    list(APPEND ADDITIONAL_LIBS nlohmann_json)
   endif()
   target_link_libraries(thinger ${ADDITIONAL_LIBS})
 
