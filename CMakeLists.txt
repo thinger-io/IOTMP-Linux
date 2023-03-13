@@ -92,7 +92,7 @@ endif()
 
 if (NOT THINGER_MASTER_PROJECT)
 
-  message(STATUS "Generating install of ${CMAKE_PROJECT_NAME}")
+  message(STATUS "Generating install of ${PROJECT_NAME}")
 
   file(GLOB_RECURSE SOURCE_FILES
     "src/thinger/*.hpp"
@@ -115,6 +115,8 @@ if (NOT THINGER_MASTER_PROJECT)
   add_library(thinger::thinger ALIAS thinger)
 
   set(THINGER_INCLUDES_LEVEL "")
+  target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
+                                      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
   export(TARGETS thinger FILE thinger.cmake)
   export(PACKAGE thinger)
