@@ -170,16 +170,7 @@ if (NOT THINGER_MASTER_PROJECT)
     TARGETS thinger
     NAMESPACE thinger::
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
-  export(
-    TARGETS nlohmann_json
-    NAMESPACE nlohmann_json::
-    FILE "${CMAKE_CURRENT_BINARY_DIR}/nlohmann_jsonTargets.cmake")
-  install(
-    EXPORT nlohmann_json
-    DESTINATION ${export_dest_dir}
-    NAMESPACE nlohmann_json::
-    FILE nlohmann_jsonTargets.cmake)
-  install(EXPORT thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
+  #install(EXPORT thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
 
 else()
 
