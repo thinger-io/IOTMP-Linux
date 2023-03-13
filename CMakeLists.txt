@@ -11,7 +11,7 @@ add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
 add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
-# Check if thinger is being via add_subdirectory
+# Check if thinger is being built by subproject of standalone
 #set(THINGER_MASTER_PROJECT OFF)
 if(NOT DEFINED THINGER_MASTER_PROJECT)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -25,31 +25,21 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
-# check c++17 support
+# check c++17 or c++20 support
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)
+#CHECK_CXX_COMPILER_FLAG("-std=c++20" COMPILER_SUPPORTS_CXX20)
+#if(COMPILER_SUPPORTS_CXX20)
+#  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+#elseif(COMPILER_SUPPORTS_CXX17)
 if(COMPILER_SUPPORTS_CXX17)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 else()
-    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++17support. Please use a different C++ compiler.")
+  message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++17 support. Please use a different C++ compiler.")
 endif()
-
-# include src/util ash include path
-include_directories("src/loguru")
-
-# configure Thinger.io parameters
-OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 
 # OpenSSL
 #set(OPENSSL_USE_STATIC_LIBS TRUE)
-
-if (APPLE)
-    # This is a bug in CMake that causes it to prefer the system version over
-    # the one in the specified ROOT folder.
-    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/Cellar/openssl@1.1/1.1.1s/)
-    set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib CACHE FILEPATH "" FORCE)
-    set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libssl.dylib CACHE FILEPATH "" FORCE)
-endif()
 
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
@@ -84,14 +74,6 @@ endif()
 find_package(spdlog)
 if(spdlog_FOUND)
   add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
-  #include_directories(${spdlog_INCLUDE_DIRS})
-  ##target_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
-  #list(APPEND ADDITIONAL_LIBS ${spdlog_LIBRARIES})
-endif()
-
-# required for GCC < 9.0
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    list(APPEND ADDITIONAL_LIBS "stdc++fs")
 endif()
 
 # Add 'util' lib for supporting forkpty
@@ -102,7 +84,6 @@ add_definitions( -DTHINGER_SERVER="iot.thinger.io")
 add_definitions( -DTHINGER_KEEP_ALIVE_SECONDS=60)
 add_definitions( -DTHINGER_RECONNECT_SECONDS=15)
 add_definitions( -DTHINGER_CONNECT_TIMEOUT=15)
-
 if(OPENSSL_FOUND)
     add_definitions(-DTHINGER_PORT=25206)
     add_definitions(-DTHINGER_OPEN_SSL=1)
@@ -112,7 +93,7 @@ endif()
 
 if (NOT THINGER_MASTER_PROJECT)
 
-  message(STATUS "Generating install of IOTMP-Linux")
+  message(STATUS "Generating install of ${CMAKE_PROJECT_NAME}")
 
   file(GLOB_RECURSE SOURCE_FILES
     "src/thinger/*.hpp"
@@ -127,50 +108,17 @@ if (NOT THINGER_MASTER_PROJECT)
     "src/loguru/*.c"
   )
 
-  if(THINGER_BUILD_SHARED OR BUILD_SHARED_LIBS)
-    add_library(thinger SHARED ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
-    target_compile_definitions(thinger PUBLIC THINGER_SHARED_LIB)
-  else()
-    add_library(thinger STATIC ${SOURCE_FILES} ${THINGER_ALL_HEADERS})
-  endif()
+  add_library(thinger STATIC ${SOURCE_FILES})
+
   target_compile_definitions(thinger PUBLIC -DTHINGER_SERVER="iot.thinger.io")
   target_compile_definitions(thinger PUBLIC -DTHINGER_ENABLE_STREAM_LISTENER)
 
   add_library(thinger::thinger ALIAS thinger)
+
   set(THINGER_INCLUDES_LEVEL "")
-  target_compile_definitions(thinger PUBLIC THINGER_COMPILED_LIB)
-  target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
-                                      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-  # httplib
-  if( TARGET httplib )
-    if ( TARGET nlohmann_json )
-      #target_link_libraries(${PROJECT} PUBLIC httplib)
-      message(STATUS "Adding json and httplib to thinger library")
-      list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json httplib::httplib)
-      endif()
-  endif()
-  target_link_libraries(thinger ${ADDITIONAL_LIBS})
 
-  set(config_targets_file "thingerConfigTargets.cmake")
-  set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/thinger")
-
-  install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-  install(
-    TARGETS thinger
-    EXPORT thinger
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  )
-
-  # ---------------------------------------------------------------------------------------
-  # Install CMake config files
-  # ---------------------------------------------------------------------------------------
-  export(
-    TARGETS thinger
-    NAMESPACE thinger::
-    FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
-  install(EXPORT thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
+  export(TARGETS thinger FILE thinger.cmake)
+  export(PACKAGE thinger)
 
 else()
 
