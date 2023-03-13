@@ -107,19 +107,29 @@ if (NOT THINGER_MASTER_PROJECT)
     "src/loguru/*.c"
   )
 
-  add_library(thinger STATIC ${SOURCE_FILES})
+  add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 
-  target_compile_definitions(thinger PUBLIC -DTHINGER_SERVER="iot.thinger.io")
-  target_compile_definitions(thinger PUBLIC -DTHINGER_ENABLE_STREAM_LISTENER)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC -DTHINGER_SERVER="iot.thinger.io")
+  target_compile_definitions(${PROJECT_NAME} PUBLIC -DTHINGER_ENABLE_STREAM_LISTENER)
 
-  add_library(thinger::thinger ALIAS thinger)
+  add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+  # httplib
+  if( TARGET httplib )
+    if ( TARGET nlohmann_json )
+      #target_link_libraries(${PROJECT} PUBLIC httplib)
+      message(STATUS "Adding json and httplib to thinger library")
+      list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json httplib::httplib)
+      endif()
+  endif()
+  target_link_libraries(thinger ${ADDITIONAL_LIBS})
 
   set(THINGER_INCLUDES_LEVEL "")
-  target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
+  target_include_directories(${PROJECT_NAME} ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
-  export(TARGETS thinger FILE thinger.cmake)
-  export(PACKAGE thinger)
+  export(TARGETS ${PROJECT_NAME} FILE thingerConfigTargets.cmake)
+  export(PACKAGE ${PROJECT_NAME})
 
 else()
 
