@@ -170,7 +170,7 @@ if (NOT THINGER_MASTER_PROJECT)
     TARGETS nlohmann_json httplib thinger
     NAMESPACE thinger::
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
-  install(EXPORT nlohmann_json httplib thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
+  install(EXPORT nlohmann_json thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
 
 else()
 
