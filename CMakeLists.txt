@@ -141,7 +141,7 @@ if (NOT THINGER_MASTER_PROJECT)
   target_compile_definitions(thinger PUBLIC THINGER_COMPILED_LIB)
   target_include_directories(thinger ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
                                       "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-# httplib
+  # httplib
   if( TARGET httplib )
     if ( TARGET nlohmann_json )
       #target_link_libraries(${PROJECT} PUBLIC httplib)
@@ -167,7 +167,7 @@ if (NOT THINGER_MASTER_PROJECT)
   # Install CMake config files
   # ---------------------------------------------------------------------------------------
   export(
-    TARGETS thinger
+    TARGETS nlohmann_json httplib thinger
     NAMESPACE thinger::
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
   install(EXPORT thinger DESTINATION ${export_dest_dir} NAMESPACE thinger:: FILE ${config_targets_file})
