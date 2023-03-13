@@ -167,7 +167,7 @@ if (NOT THINGER_MASTER_PROJECT)
   # Install CMake config files
   # ---------------------------------------------------------------------------------------
   export(
-    TARGETS nlohmann_json httplib thinger
+    TARGETS thinger
     NAMESPACE thinger::
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${config_targets_file}")
   export(
