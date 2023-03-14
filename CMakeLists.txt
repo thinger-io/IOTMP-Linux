@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10...3.21)
+cmake_minimum_required(VERSION 3.11...3.21)
 project(thinger)
 
 # set package version
@@ -11,6 +11,8 @@ add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
 add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
+
 # Check if thinger is being built by subproject of standalone
 #set(THINGER_MASTER_PROJECT OFF)
 if(NOT DEFINED THINGER_MASTER_PROJECT)
@@ -20,8 +22,6 @@ if(NOT DEFINED THINGER_MASTER_PROJECT)
     set(THINGER_MASTER_PROJECT OFF)
   endif()
 endif()
-
-#set(THINGER_IOTMP_TARGET_NAME               ${PROJECT_NAME})
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
@@ -37,8 +37,22 @@ else()
   message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++17 support. Please use a different C++ compiler.")
 endif()
 
+# include src/util ash include path
+include_directories("src/loguru")
+
+# configure Thinger.io parameters
+OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
+
 # OpenSSL
-#set(OPENSSL_USE_STATIC_LIBS TRUE)
+set(OPENSSL_USE_STATIC_LIBS TRUE)
+
+if (APPLE)
+    # This is a bug in CMake that causes it to prefer the system version over
+    # the one in the specified ROOT folder.
+    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/Cellar/openssl@1.1/1.1.1s/)
+    set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib CACHE FILEPATH "" FORCE)
+    set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libssl.dylib CACHE FILEPATH "" FORCE)
+endif()
 
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
@@ -62,21 +76,26 @@ if(Boost_FOUND)
     list(APPEND ADDITIONAL_LIBS ${Boost_LIBRARIES})
 endif()
 
-# fmt
-find_package(fmt)
-if(fmt_FOUND)
-  include_directories(${fmt_INCLUDE_DIRS})
-  list(APPEND ADDITIONAL_LIBS fmt::fmt)
-endif()
-
-# spdlog
-find_package(spdlog)
-if(spdlog_FOUND)
-  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+# required for GCC < 9.0
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    list(APPEND ADDITIONAL_LIBS "stdc++fs")
 endif()
 
 # Add 'util' lib for supporting forkpty
 list(APPEND ADDITIONAL_LIBS util)
+
+# fmt
+#find_package(fmt)
+#if(fmt_FOUND)
+#  include_directories(${fmt_INCLUDE_DIRS})
+#  list(APPEND ADDITIONAL_LIBS fmt::fmt)
+#endif()
+
+# spdlog
+#find_package(spdlog)
+#if(spdlog_FOUND)
+#  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+#endif()
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
@@ -133,7 +152,7 @@ if (NOT THINGER_MASTER_PROJECT)
 
 else()
 
-  message(STATUS "Generating binary of IOTMP-Linux")
+  message(STATUS "Generating binary of ${PROJECT_NAME}")
 
   file(GLOB_RECURSE SOURCE_FILES
     "src/*.hpp"
@@ -156,7 +175,7 @@ else()
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
   endif()
 
-  add_executable(thinger ${SOURCE_FILES})
+  add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
   if(APPLE)
     # use this options to test with sanitizer
