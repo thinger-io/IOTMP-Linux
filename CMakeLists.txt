@@ -114,6 +114,7 @@ FetchContent_Declare(
   GIT_TAG         v0.11.0
 )
 FetchContent_MakeAvailable(spdlog)
+list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
 
 if (NOT THINGER_MASTER_PROJECT)
 
