@@ -148,6 +148,7 @@ if (NOT THINGER_MASTER_PROJECT)
       list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json httplib::httplib)
       endif()
   endif()
+  message(STATUS "Additional libraries to add are ${ADDITIONAL_LIBS}")
   target_link_libraries(thinger ${ADDITIONAL_LIBS})
 
   set(THINGER_INCLUDES_LEVEL "")
