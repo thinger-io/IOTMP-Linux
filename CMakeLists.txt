@@ -113,20 +113,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-# json
-FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
-FetchContent_MakeAvailable(json)
-list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json)
-
-# httplib
-FetchContent_Declare(
-  httplib
-  GIT_REPOSITORY  https://github.com/yhirose/cpp-httplib.git
-  GIT_TAG         v0.12.0
-)
-FetchContent_MakeAvailable(httplib)
-list(APPEND ADDITIONAL_LIBS httplib::httplib)
-
 if (NOT THINGER_MASTER_PROJECT)
 
   message(STATUS "Generating install of ${PROJECT_NAME}")
