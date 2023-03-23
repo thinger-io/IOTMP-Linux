@@ -42,9 +42,7 @@ include_directories("src/loguru")
 
 # configure Thinger.io parameters
 OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
-
-# OpenSSL
-set(OPENSSL_USE_STATIC_LIBS TRUE)
+OPTION(STATIC "Enable static linking" OFF)
 
 if (APPLE)
     # This is a bug in CMake that causes it to prefer the system version over
@@ -59,6 +57,10 @@ if(OPENSSL_FOUND)
     include_directories(${OPENSSL_INCLUDE_DIR})
     list(APPEND ADDITIONAL_LIBS OpenSSL::SSL)
     list(APPEND ADDITIONAL_LIBS OpenSSL::Crypto)
+    if(STATIC)
+      # OpenSSL
+      set(OPENSSL_USE_STATIC_LIBS TRUE)
+    endif()
     message(STATUS "OpenSSL Version: ${OPENSSL_VERSION} ${OPENSSL_INCLUDE_DIR} ${OPENSSL_SSL_LIBRARIES} ${OPENSSL_CRYPTO_LIBRARIES}")
 endif()
 
@@ -84,19 +86,6 @@ endif()
 # Add 'util' lib for supporting forkpty
 list(APPEND ADDITIONAL_LIBS util)
 
-# fmt
-#find_package(fmt)
-#if(fmt_FOUND)
-#  include_directories(${fmt_INCLUDE_DIRS})
-#  list(APPEND ADDITIONAL_LIBS fmt::fmt)
-#endif()
-
-# spdlog
-#find_package(spdlog)
-#if(spdlog_FOUND)
-#  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
-#endif()
-
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
 add_definitions( -DTHINGER_KEEP_ALIVE_SECONDS=60)
@@ -108,6 +97,35 @@ if(OPENSSL_FOUND)
 else()
     add_definitions(-DTHINGER_PORT=25204)
 endif()
+
+include(FetchContent)
+
+# fmt
+FetchContent_Declare(fmt URL https://github.com/fmtlib/fmt/releases/download/9.1.0/fmt-9.1.0.zip)
+FetchContent_MakeAvailable(fmt)
+list(APPEND ADDITIONAL_LIBS fmt::fmt)
+
+# spdlog
+FetchContent_Declare(
+  spdlog
+  GIT_REPOSITORY  https://github.com/gabime/spdlog.git
+  GIT_TAG         v0.11.0
+)
+FetchContent_MakeAvailable(spdlog)
+
+# json
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
+FetchContent_MakeAvailable(json)
+list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json)
+
+# httplib
+FetchContent_Declare(
+  httplib
+  GIT_REPOSITORY  https://github.com/yhirose/cpp-httplib.git
+  GIT_TAG         v0.12.0
+)
+FetchContent_MakeAvailable(httplib)
+list(APPEND ADDITIONAL_LIBS httplib::httplib)
 
 if (NOT THINGER_MASTER_PROJECT)
 
@@ -161,6 +179,16 @@ else()
     "src/*.cc"
     "src/*.c"
   )
+
+  if(STATIC)
+    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+    # generate a static binary
+    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static -pthread")
+  endif()
 
   if(APPLE)
 
