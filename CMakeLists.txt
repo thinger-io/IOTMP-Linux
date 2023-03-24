@@ -114,7 +114,7 @@ FetchContent_Declare(
   GIT_TAG         v0.11.0
 )
 FetchContent_MakeAvailable(spdlog)
-list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
+# Not needed: list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
 
 if (NOT THINGER_MASTER_PROJECT)
 
@@ -148,7 +148,6 @@ if (NOT THINGER_MASTER_PROJECT)
       list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json httplib::httplib)
       endif()
   endif()
-  message(STATUS "Additional libraries to add are ${ADDITIONAL_LIBS}")
   target_link_libraries(thinger ${ADDITIONAL_LIBS})
 
   set(THINGER_INCLUDES_LEVEL "")
