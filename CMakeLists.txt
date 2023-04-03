@@ -110,11 +110,11 @@ list(APPEND ADDITIONAL_LIBS fmt::fmt)
 # spdlog
 FetchContent_Declare(
   spdlog
-  GIT_REPOSITORY  https://github.com/gabime/spdlog.git
-  GIT_TAG         v0.11.0
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG v1.11.0
 )
 FetchContent_MakeAvailable(spdlog)
-# Not needed: list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
+list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
 
 if (NOT THINGER_MASTER_PROJECT)
 
