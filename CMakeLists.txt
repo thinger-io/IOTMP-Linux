@@ -114,6 +114,7 @@ FetchContent_Declare(
   GIT_TAG v1.11.0
 )
 FetchContent_MakeAvailable(spdlog)
+add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
 
 if (NOT THINGER_MASTER_PROJECT)
