@@ -26,7 +26,6 @@
     #define THINGER_LOG_ERROR(...) SPDLOG_ERROR(fmt::sprintf(__VA_ARGS__))
     #define THINGER_LOG_ERROR_TAG(TAG, ...) SPDLOG_ERROR("[{}] {}", TAG, fmt::sprintf(__VA_ARGS__))
 
-
 #elif __has_include(<loguru.hpp>)
     #include <loguru.hpp>
     #define LOG_INFO(...) LOG_F(INFO, __VA_ARGS__)

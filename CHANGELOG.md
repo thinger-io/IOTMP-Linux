@@ -5,3 +5,6 @@
 - Allow static linking
 - Logging with spdlog as alternative to loguru
 - Allow compilation into library
+
+### Changed
+- Move pson/json conversion functions from nlohmann to protoson namespace
