@@ -8,3 +8,4 @@
 
 ### Changed
 - Move pson/json conversion functions from nlohmann to protoson namespace
+- Added option to CMake for enabling Loguru logging library

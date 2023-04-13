@@ -39,12 +39,14 @@ else()
   message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++17 support. Please use a different C++ compiler.")
 endif()
 
-# include src/util ash include path
-include_directories("src/loguru")
-
 # configure Thinger.io parameters
 OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 OPTION(STATIC "Enable static linking" OFF)
+OPTION(LOGURU "Enable Loguru logging libary" OFF)
+
+if(LOGURU)
+  include_directories("src/loguru")
+endif()
 
 if (APPLE)
     # This is a bug in CMake that causes it to prefer the system version over
@@ -108,19 +110,22 @@ FetchContent_MakeAvailable(fmt)
 list(APPEND ADDITIONAL_LIBS fmt::fmt)
 
 # spdlog
-FetchContent_Declare(
-  spdlog
-  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.11.0
-)
-FetchContent_MakeAvailable(spdlog)
-add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
-list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
+if(NOT LOGURU)
+  FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.11.0
+  )
+  FetchContent_MakeAvailable(spdlog)
+  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+  list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
+endif()
 
 if (NOT THINGER_MASTER_PROJECT)
 
   message(STATUS "Generating install of ${PROJECT_NAME}")
 
+if(LOGURU)
   file(GLOB_RECURSE SOURCE_FILES
     "src/thinger/*.hpp"
     "src/thinger/*.h"
@@ -133,6 +138,15 @@ if (NOT THINGER_MASTER_PROJECT)
     "src/loguru/*.cc"
     "src/loguru/*.c"
   )
+else()
+  file(GLOB_RECURSE SOURCE_FILES
+    "src/thinger/*.hpp"
+    "src/thinger/*.h"
+    "src/thinger/*.cpp"
+    "src/thinger/*.cc"
+    "src/thinger/*.c"
+  )
+endif()
 
   add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 
