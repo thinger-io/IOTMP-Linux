@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.11...3.21)
 project(thinger)
 
-cmake_policy(SET CMP0135 NEW)
+if (${CMAKE_VERSION} VERSION_GREATER "3.24")
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 # set package version
 set(VERSION_MAJOR 0)
