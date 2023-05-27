@@ -46,6 +46,8 @@ OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 OPTION(STATIC "Enable static linking" OFF)
 OPTION(LOGURU "Enable Loguru logging libary" OFF)
 
+SET(ARCH "x86_64" CACHE STRING "Compiler architecure")
+
 if(LOGURU)
   include_directories("src/loguru")
 endif()
@@ -91,6 +93,12 @@ endif()
 
 # Add 'util' lib for supporting forkpty
 list(APPEND ADDITIONAL_LIBS util)
+
+# Add atomic for 32 bit arm
+if("${ARCH}" STREQUAL "armv7m")
+  message(STATUS "Linking against libatomic")
+  list(APPEND ADDITIONAL_LIBS atomic)
+endif()
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
