@@ -371,6 +371,7 @@ namespace thinger::iotmp{
             params["event"] = "device_property_update";
             if(fetch_at_subscription) params["current"] = true;
             params["filters"]["property"] = property;
+            params["filters"]["device"] = device_id_;
             return event;
         }
 
