@@ -20,6 +20,7 @@ namespace thinger::iotmp{
         username_ = user;
         device_id_ = device;
         device_password_ = device_credential;
+        iotmp::set_credentials(username_.c_str(), device_id_.c_str(), device_password_.c_str()); // needed for state listeners and streams filters
     }
 
     void client::set_hostname(const std::string& host){
