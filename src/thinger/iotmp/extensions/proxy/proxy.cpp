@@ -15,9 +15,10 @@ namespace thinger::iotmp{
         std::string protocol = parameters["protocol"];
         std::string host     = parameters["address"];
         uint16_t    port     = parameters["port"];
+        bool        secure   = parameters["secure"];
 
         if(protocol=="tcp"){
-            return std::make_shared<proxy_session>(client, stream_id, session, host, port);
+            return std::make_shared<proxy_session>(client, stream_id, session, host, port, secure);
         }
 
         return nullptr;

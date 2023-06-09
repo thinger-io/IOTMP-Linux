@@ -4,14 +4,19 @@
 namespace thinger::iotmp{
 
     proxy_session::proxy_session(client& client, uint16_t stream_id, std::string session, std::string host,
-                                 uint16_t port)
+                                 uint16_t port, bool secure)
             : stream_session(client, stream_id, std::move(session)),
-              socket_("proxy", client.get_io_service()),
               host_(std::move(host)),
               port_(port)
     {
         //THINGER_LOG("[%u] created proxy session: %s:%u", stream_id_, host_.c_str(), port_);
-
+        if(secure){
+            auto ssl_context = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23_client);
+            ssl_context->set_default_verify_paths();
+            socket_ = std::make_shared<thinger::asio::ssl_socket>("proxy", client.get_io_service(), ssl_context);
+        }else{
+            socket_ = std::make_shared<thinger::asio::tcp_socket>("proxy", client.get_io_service());
+        }
     }
 
     proxy_session::~proxy_session(){
@@ -21,7 +26,7 @@ namespace thinger::iotmp{
     void proxy_session::start(result_handler handler){
         THINGER_LOG("[%u] starting proxy session: %s:%u", stream_id_, host_.c_str(), port_);
 
-        socket_.connect(host_,
+        socket_->connect(host_,
                         std::to_string(port_),
                         std::chrono::seconds(10),
                         [this, shelf = shared_from_this(), handler = std::move(handler)](const boost::system::error_code & ec){
@@ -40,7 +45,7 @@ namespace thinger::iotmp{
     }
 
     bool proxy_session::stop(){
-        if(socket_.is_open()) socket_.cancel();
+        if(socket_->is_open()) socket_->cancel();
         return true;
     }
 
@@ -56,7 +61,7 @@ namespace thinger::iotmp{
 
     void proxy_session::handle_write(){
         // ensure there is no any pending write, there is data to write, and the socket is open
-        if(writing_ || write_buffer_.empty() || !socket_.is_open()) return;
+        if(writing_ || write_buffer_.empty() || !socket_->is_open()) return;
 
         // mark proxy as writing
         writing_ = true;
@@ -66,7 +71,7 @@ namespace thinger::iotmp{
 
         // write to socket
         //THINGER_LOG("writing on target proxy buffer: %zu bytes", front.size());
-        socket_.async_write(front, [this, self = shared_from_this()](const boost::system::error_code& ec, std::size_t bytes_transferred){
+        socket_->async_write(front, [this, self = shared_from_this()](const boost::system::error_code& ec, std::size_t bytes_transferred){
             // error while writing to target connection
             if(ec){
                 if(ec!=boost::asio::error::operation_aborted){
@@ -95,7 +100,7 @@ namespace thinger::iotmp{
 
     void proxy_session::handle_read(){
         //THINGER_LOG("reading data from tcp proxy");
-        socket_.async_read_some((uint8_t*)buffer_, READ_BUFFER_SIZE, [this, self = shared_from_this()](const boost::system::error_code& ec, std::size_t bytes_transferred){
+        socket_->async_read_some((uint8_t*)buffer_, READ_BUFFER_SIZE, [this, self = shared_from_this()](const boost::system::error_code& ec, std::size_t bytes_transferred){
             if(ec){
                 if(ec!=boost::asio::error::operation_aborted){
                     THINGER_LOG_ERROR("[%u] error while reading from proxy after %lld (%s)", stream_id_, last_usage().count(), ec.message().c_str());
