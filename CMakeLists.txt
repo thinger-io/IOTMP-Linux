@@ -165,12 +165,18 @@ endif()
 
   add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+  # json
+  if ( TARGET nlohmann_json )
+      message(STATUS "Adding json to thinger library")
+      list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json)
+  endif()
+
   # httplib
   if( TARGET httplib )
-    if ( TARGET nlohmann_json )
       #target_link_libraries(${PROJECT} PUBLIC httplib)
-      message(STATUS "Adding json and httplib to thinger library")
-      list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json httplib::httplib)
+      if ( TARGET nlohmann_json )
+        message(STATUS "Adding httplib to thinger library")
+        list(APPEND ADDITIONAL_LIBS httplib::httplib)
       endif()
   endif()
   target_link_libraries(thinger ${ADDITIONAL_LIBS})

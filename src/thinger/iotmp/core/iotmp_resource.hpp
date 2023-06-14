@@ -32,10 +32,12 @@
 #include <functional>
 
 #ifdef __has_include
-#  if __has_include(<httplib.h>)
-#    include <httplib.h>
+#  if __has_include(<nlohmann/json.hpp>)
 #    include "pson_to_json.hpp"
 #    include "../../util/json_decoder.hpp"
+#  endif
+#  if __has_include(<httplib.h>)
+#    include <httplib.h>
 #    define THINGER_USE_LOCAL_HTTPLIB
 #  endif
 #endif
