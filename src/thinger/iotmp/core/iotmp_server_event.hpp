@@ -17,11 +17,11 @@ namespace thinger{
         }
 
         void set_resource(iotmp::server::run resource){
-            this->resource_ = resource;
+            resource_ = resource;
         }
 
         iotmp::server::run get_resource() const{
-            return this->resource_;
+            return resource_;
         }
 
     private:

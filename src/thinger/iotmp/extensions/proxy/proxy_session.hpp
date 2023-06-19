@@ -13,7 +13,7 @@ namespace thinger::iotmp {
 class proxy_session : public stream_session{
 
     public:
-        proxy_session(client& client, uint16_t stream_id, std::string session, std::string host, uint16_t port);
+        proxy_session(client& client, uint16_t stream_id, std::string session, std::string host, uint16_t port, bool secure);
         ~proxy_session() override;
 
         void start(result_handler handler) override;
@@ -25,7 +25,7 @@ class proxy_session : public stream_session{
     private:
         char buffer_[READ_BUFFER_SIZE];
         std::queue<std::string> write_buffer_;
-        thinger::asio::tcp_socket socket_;
+        std::shared_ptr<thinger::asio::socket> socket_;
         std::string host_;
         uint16_t port_;
         bool writing_ = false;
