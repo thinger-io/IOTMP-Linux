@@ -179,7 +179,7 @@ endif()
         list(APPEND ADDITIONAL_LIBS httplib::httplib)
       endif()
   endif()
-  target_link_libraries(${PROJECT} ${ADDITIONAL_LIBS})
+  target_link_libraries(${PROJECT_NAME} ${ADDITIONAL_LIBS})
 
   set(THINGER_INCLUDES_LEVEL "")
   target_include_directories(${PROJECT_NAME} ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
@@ -229,9 +229,9 @@ else()
     # use this options to test with sanitizer
     add_definitions(-DBOOST_LOG_DYN_LINK=1)
     list(APPEND TEST_OPTIONS -fsanitize=address -fno-omit-frame-pointer -fsanitize-recover=address -g)
-    target_compile_options(${PROJECT} PRIVATE "$<$<CONFIG:DEBUG>:${TEST_OPTIONS}>")
+    target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:DEBUG>:${TEST_OPTIONS}>")
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
   endif()
 
-  target_link_libraries(${PROJECT} ${ADDITIONAL_LIBS})
+  target_link_libraries(${PROJECT_NAME} ${ADDITIONAL_LIBS})
 endif()
