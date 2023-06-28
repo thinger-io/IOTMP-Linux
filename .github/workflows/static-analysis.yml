@@ -1,0 +1,72 @@
+name: Static Analysis
+
+on:
+  release:
+    types: [ published ]
+  #push:
+  #  branches: [ "master", "develop" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+permissions:
+  pull-requests: read # allows SonarCloud to decorate PRs with analysis results
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
+    steps:
+
+      - name: Set up dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libarchive-tools libarchive-dev libboost-all-dev
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Get tag version
+        id : build_version
+        run: |
+          if [ ${{ github.event_name }} == 'release' ]; then
+            #echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/tags/})"
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          elif [ ${{ github.event_name }} == 'pull_request' ]; then
+            #echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/heads/})"
+            echo "version=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+          elif [ ${{ github.event_name }} == 'push' ]; then
+            #echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/heads/})"
+            echo "version=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+          fi
+
+      - name: Install sonar-scanner and build-wrapper
+        uses: sonarsource/sonarcloud-github-c-cpp@v1
+
+      - name: Run build-wrapper
+        run: |
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake -B ./build -DCMAKE_BUILD_TYPE=Debug -DENABLE_OPENSSL=ON -DBUILD_VERSION=sonar-${{ env.version }} -DOPENSSL_LIBRARIES=/usr/lib/ssl -DOPENSSL_ROOT_DIR=/usr/lib/ssl
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build --config Release
+
+      - name: Run sonar-scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          branch="master"
+          if [[ ${{ env.version }} == *"-alpha"* ]]; then
+            branch="develop"
+            sonar-scanner \
+              --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
+              --define sonar.projectVersion="${{ env.version }}" \
+              --define sonar.branch.name="$branch" \
+              --define sonar.branch.target="$branch"
+          else
+            sonar-scanner \
+              --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
+              --define sonar.projectVersion="${{ env.version }}"
+          fi
