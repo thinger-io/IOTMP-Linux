@@ -10,9 +10,8 @@ namespace thinger::asio{
         std::promise<std::thread::id> promise;
         thread_ = std::thread([this, &promise]{
             if(!worker_name_.empty()){
-#ifdef THINGER_LOG_LOGURU
-                loguru::set_thread_name(worker_name_.c_str());
-#endif
+                // Set logger name based on worker
+                //loguru::set_thread_name(worker_name_.c_str());
             }
             LOG_LEVEL(1, "worker thread started");
 

@@ -32,9 +32,7 @@
 #define DEFAULT_DEVICE              ""
 #define DEFAULT_CREDENTIAL          ""
 
-#ifdef THINGER_LOG_SPDLOG
-    int spdlog_verbosity_level;
-#endif
+int spdlog_verbosity_level = 0;
 
 int main(int argc, char *argv[])
 {

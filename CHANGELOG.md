@@ -11,5 +11,8 @@
 - Added option to CMake for enabling Loguru logging library
 - Integration of json without the need for httplib
 
+### Removed
+- Unmaintained loguru library
+
 ## [1.0.0] - 2023-09-03
 - First version
