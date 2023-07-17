@@ -5,6 +5,7 @@
 - Allow static linking
 - Logging with spdlog as alternative to loguru
 - Allow compilation into library
+- Bin extension in CMakeLists
 
 ### Changed
 - Move pson/json conversion functions from nlohmann to protoson namespace

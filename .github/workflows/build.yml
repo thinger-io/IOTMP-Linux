@@ -28,10 +28,8 @@ jobs:
       run: |
         if [ ${{ github.event_name }} == 'release' ]; then
           echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          #echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/tags/})"
         elif [ ${{ github.event_name }} == 'pull_request' ]; then
           echo "version=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-          #echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/heads/})"
         fi
 
   build:

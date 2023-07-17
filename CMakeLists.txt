@@ -44,6 +44,7 @@ endif()
 # configure Thinger.io parameters
 OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 OPTION(STATIC "Enable static linking" OFF)
+OPTION(BIN_EXTENSION "Set binary file extension" OFF)
 
 SET(ARCH "x86_64" CACHE STRING "Compiler architecure")
 
@@ -205,4 +206,9 @@ else()
   endif()
 
   target_link_libraries(${PROJECT_NAME} ${ADDITIONAL_LIBS})
+endif()
+
+if(BIN_EXTENSION)
+  set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}.${ARCH}")
+  message(STATUS "Binary name is ${PROJECT_NAME}.${ARCH}")
 endif()
