@@ -125,18 +125,18 @@ FetchContent_MakeAvailable(spdlog)
 add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
 
-# Source files
-file(GLOB_RECURSE SOURCE_FILES
-  "src/*.hpp"
-  "src/*.h"
-  "src/*.cpp"
-  "src/*.cc"
-  "src/*.c"
-)
-
 if (NOT THINGER_MASTER_PROJECT)
 
   message(STATUS "Generating install of ${PROJECT_NAME}")
+
+  # Source files
+  file(GLOB_RECURSE SOURCE_FILES
+    "src/thinger/*.hpp"
+    "src/thinger/*.h"
+    "src/thinger/*.cpp"
+    "src/thinger/*.cc"
+    "src/thinger/*.c"
+  )
 
   add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 
@@ -171,6 +171,15 @@ if (NOT THINGER_MASTER_PROJECT)
 else()
 
   message(STATUS "Generating binary of ${PROJECT_NAME}")
+
+  # Source files
+  file(GLOB_RECURSE SOURCE_FILES
+    "src/*.hpp"
+    "src/*.h"
+    "src/*.cpp"
+    "src/*.cc"
+    "src/*.c"
+  )
 
   if(STATIC)
     set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
