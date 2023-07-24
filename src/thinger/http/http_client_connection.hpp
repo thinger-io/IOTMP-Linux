@@ -29,7 +29,7 @@ namespace thinger::http{
          * Constant for controlling the maximum number of pending requests stored
          * in the output queue.
          */
-        static const unsigned MAX_OUTPUT_REQUESTS = 256;
+        static constexpr unsigned MAX_OUTPUT_REQUESTS = 256;
 
         /**
          * Parameter for controlling the connection timeout. Number of seconds without

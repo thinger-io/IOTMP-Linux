@@ -1,0 +1,101 @@
+name: Build
+
+on:
+  release:
+    types: [ published ] # when a release is created, build and publish bins
+  pull_request:
+    branches: [ master,develop ] # when a pull request is opened only build
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  MODULE: thinger-iotmp
+  BUILD_TYPE: Release
+  OPENSSL_ROOT_DIR: /usr/lib/ssl
+
+jobs:
+
+  build_version:
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Get tag version
+      id : version
+      run: |
+        if [ ${{ github.event_name }} == 'release' ]; then
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        elif [ ${{ github.event_name }} == 'pull_request' ]; then
+          echo "version=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+        fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: build_version
+    strategy:
+      fail-fast: false # continues with matrix even if an element fails
+      matrix:
+        architecture: ["x86_64", "armv7m_eabi", "aarch64"]
+    container:
+      image: thinger/toolchains:iotmp-static_${{ matrix.architecture }}
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        ref: ${{ needs.build_version.outputs.version }}
+
+    - name: Configure CMake
+      run: cmake -B /build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DBUILD_VERSION=${{ needs.build_version.outputs.version }} -DSTATIC=ON -DOPENSSL_ROOT_DIR=${{ env.OPENSSL_ROOT_DIR }} -DOPENSSL_LIBRARIES=${{ env.OPENSSL_ROOT_DIR }} -DBIN_EXTENSION=ON -DBoost_NO_WARN_NEW_VERSIONS=1 -DARCH=${{ matrix.architecture }}
+
+    - name: Build
+      # Build your program with the given configuration
+      run: cmake --build /build --config ${{ env.BUILD_TYPE }}
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      if: ${{ github.event_name == 'release' }}
+      with:
+        name: ${{ env.MODULE }}.${{ matrix.architecture }}
+        path: /build/${{ env.MODULE }}.${{ matrix.architecture }}
+        if-no-files-found: error
+        retention-days: 1
+
+  # TODO: Install and run
+
+  upload_to_release: # when tag is created
+    if: ${{ github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+    needs: [build_version, build]
+    strategy:
+      fail-fast: false # continues with matrix even if an element fails
+      matrix:
+        architecture: ["x86_64", "armv7m_eabi", "aarch64"]
+
+    steps:
+
+    - name: Download ${{ matrix.architecture }} binary
+      uses: actions/download-artifact@v3
+      with:
+        name: ${{ env.MODULE }}.${{ matrix.architecture }}
+
+    - name: Check file existence
+      run: |
+        echo ". directory"
+        pwd
+        ls -la .
+        echo "github workspace directory"
+        ls -la ${{ github.workspace }}
+
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ env.MODULE }}.${{ matrix.architecture }}
+        tag: ${{ needs.build_version.outputs.version }}
+

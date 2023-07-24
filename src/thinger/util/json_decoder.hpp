@@ -27,55 +27,55 @@
 #include <stdexcept>
 #include <string>
 #include <cmath>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 #include "../iotmp/core/pson.h"
 
-namespace nlohmann
+namespace protoson
 {
 
-    static void to_pson_internal(const json& j, protoson::pson& p)
+    static void to_pson_internal(const nlohmann::json& j, protoson::pson& p)
     {
         switch (j.type())
         {
-            case detail::value_t::null:
+            case nlohmann::detail::value_t::null:
             {
                 // nil
                 p.set_null();
                 break;
             }
 
-            case detail::value_t::boolean:
+            case nlohmann::detail::value_t::boolean:
             {
                 // true and false
                 p = j.get<bool>();
                 break;
             }
 
-            case detail::value_t::number_integer:
+            case nlohmann::detail::value_t::number_integer:
             {
                 p = j.get<std::int64_t>();
                 break;
             }
 
-            case detail::value_t::number_unsigned:
+            case nlohmann::detail::value_t::number_unsigned:
             {
                 p = j.get<std::uint64_t>();
                 break;
             }
 
-            case detail::value_t::number_float:
+            case nlohmann::detail::value_t::number_float:
             {
                 p = j.get<double>();
                 break;
             }
 
-            case detail::value_t::string:
+            case nlohmann::detail::value_t::string:
             {
                 p = j.get<std::string>();
                 break;
             }
 
-            case detail::value_t::array:
+            case nlohmann::detail::value_t::array:
             {
                 protoson::pson_array& array = (protoson::pson_array&) p;
                 // append each element
@@ -86,11 +86,11 @@ namespace nlohmann
                 break;
             }
 
-            case detail::value_t::object:
+            case nlohmann::detail::value_t::object:
             {
                 protoson::pson_object& object = (protoson::pson_object&) p;
                 // append each element
-                for (json::const_iterator it = j.begin(); it != j.end(); ++it) {
+                for (nlohmann::json::const_iterator it = j.begin(); it != j.end(); ++it) {
                     to_pson_internal(it.value(), object[it.key().c_str()]);
                 }
                 break;
@@ -103,7 +103,7 @@ namespace nlohmann
         }
     }
 
-    static void to_json_internal(protoson::pson& p, json& j)
+    static void to_json_internal(protoson::pson& p, nlohmann::json& j)
     {
         switch(p.get_type())
         {
@@ -154,7 +154,7 @@ namespace nlohmann
                 break;
             case protoson::pson::object_field:
             {
-                j = json::object();
+                j = nlohmann::json::object();
                 protoson::pson_container<protoson::pson_pair>::iterator it = ((protoson::pson_object&)p).begin();
                 while(it.valid()){
                     to_json_internal(it.item().value(), j[it.item().name()]);
@@ -164,10 +164,10 @@ namespace nlohmann
                 break;
             case protoson::pson::array_field:
             {
-                j = json::array();
+                j = nlohmann::json::array();
                 protoson::pson_container<protoson::pson>::iterator it = ((protoson::pson_array&)p).begin();
                 while(it.valid()){
-                    json array_value;
+                    nlohmann::json array_value;
                     to_json_internal(it.item(), array_value);
                     j.push_back(array_value);
                     it.next();
@@ -187,29 +187,27 @@ namespace nlohmann
                 j = nullptr;
                 break;
             case protoson::pson::empty:
-                j = json();
+                j = nlohmann::json();
                 break;
         }
     }
 
-    static void to_pson(const json& j, protoson::pson& p)
+    static void to_pson(const nlohmann::json& j, protoson::pson& p)
     {
         to_pson_internal(j, p);
     }
 
-    static void to_json(protoson::pson& p, json& j)
+    static void to_json(protoson::pson& p, nlohmann::json& j)
     {
         to_json_internal(p, j);
     }
-}
 
-namespace protoson{
     class json_decoder{
     public:
         static bool parse(const std::string& json, pson& pson){
             try{
                 nlohmann::json json_parsed = nlohmann::json::parse(json);
-                nlohmann::to_pson(json_parsed, pson);
+                protoson::to_pson(json_parsed, pson);
             }catch(...){
                 return false;
             }
@@ -218,7 +216,7 @@ namespace protoson{
 
         static bool parse(const nlohmann::json& json, pson& pson){
             try{
-                nlohmann::to_pson(json, pson);
+                protoson::to_pson(json, pson);
             }catch(...){
                 return false;
             }

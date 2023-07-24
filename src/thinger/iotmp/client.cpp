@@ -20,6 +20,7 @@ namespace thinger::iotmp{
         username_ = user;
         device_id_ = device;
         device_password_ = device_credential;
+        iotmp::set_credentials(username_.c_str(), device_id_.c_str(), device_password_.c_str()); // needed for state listeners and streams filters
     }
 
     void client::set_hostname(const std::string& host){
@@ -186,7 +187,7 @@ namespace thinger::iotmp{
         authenticated_ = false;
         if(running_ && !connecting_){
             async_timer_.set_timeout(std::chrono::seconds{THINGER_RECONNECT_SECONDS});
-            LOG_INFO("tyring to connect again in %d seconds", THINGER_RECONNECT_SECONDS);
+            LOG_INFO("trying to connect again in %d seconds", THINGER_RECONNECT_SECONDS);
             async_timer_.set_callback([this]{
                 // stop async timer
                 async_timer_.stop();

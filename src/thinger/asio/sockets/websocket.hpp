@@ -1,5 +1,6 @@
 #ifndef THINGER_ASIO_WEBSOCKET_HPP
 #define THINGER_ASIO_WEBSOCKET_HPP
+#pragma once
 
 #include "socket.hpp"
 #include <queue>
@@ -20,7 +21,7 @@ class websocket : public socket{
 
     // constants
     static constexpr auto CONNECTION_TIMEOUT_SECONDS = std::chrono::seconds{60};
-    static const int MASK_SIZE_BYTES = 4;
+    static constexpr int MASK_SIZE_BYTES = 4;
 
 public:
 
