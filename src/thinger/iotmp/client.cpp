@@ -110,6 +110,7 @@ namespace thinger::iotmp{
 
             // subscribe to resources
             iotmp::initialize_streams();
+            notify_state(THINGER_STREAMS_READY);
         }else{
             notify_state(THINGER_AUTH_FAILED);
             disconnected();

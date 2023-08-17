@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.0] - 2023-08-17
+### Added
+- Add new THINGER\_STREAMS\_READY state listener
+
 ## [1.1.0] - 2023-06-28
 ### Added
 - Allow static linking
