@@ -199,11 +199,10 @@ namespace thinger::iotmp{
         }
 
         void set_secure_connection(bool secure){
-            port_ = 25204;
             secure_ = secure;
         }
 
-        bool get_secure_connection(){
+        bool set_secure_connection(){
             return secure_;
         }
 
