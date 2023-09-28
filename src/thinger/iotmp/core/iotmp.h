@@ -95,7 +95,8 @@ namespace thinger::iotmp{
         THINGER_AUTH_FAILED,
         THINGER_STOP_REQUEST,
         THINGER_KEEP_ALIVE_SENT,
-        THINGER_KEEP_ALIVE_RECEIVED
+        THINGER_KEEP_ALIVE_RECEIVED,
+        THINGER_STREAMS_READY
     };
 
     using namespace protoson;
@@ -282,6 +283,9 @@ namespace thinger::iotmp{
                     break;
                 case THINGER_KEEP_ALIVE_RECEIVED:
                     THINGER_LOG_TAG("THINGER", "Keep alive received");
+                    break;
+                case THINGER_STREAMS_READY:
+                    THINGER_LOG_TAG("THINGER", "Data streams are initialized");
                     break;
             }
             if(state_listener_){

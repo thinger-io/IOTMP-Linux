@@ -57,5 +57,6 @@ jobs:
         tag: ${{ env.tag_version }}
         name: ${{ env.tag_version }}
         token: ${{ secrets.GH_PAT }} # can't use GITHUB_TOKEN as it will not trigger additional events
+        artifacts: "install/install_thinger_iotmp.sh"
         bodyFile: "release_body.md"
 

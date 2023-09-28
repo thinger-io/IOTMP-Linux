@@ -1,0 +1,17 @@
+[Unit]
+Description=Thinger.io IOTMP client for the Internet of Things
+After=network.target
+StartLimitIntervalSec=500
+StartLimitBurst=5
+
+[Service]
+$certs_dir_env
+Environment=HOME=$home_dir
+ExecStart=$bin_dir/thinger_iotmp
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
