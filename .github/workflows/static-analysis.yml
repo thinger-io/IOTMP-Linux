@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Install sonar-scanner and build-wrapper
-        uses: sonarsource/sonarcloud-github-c-cpp@v1
+        uses: sonarsource/sonarcloud-github-c-cpp@v2
 
       - name: Run build-wrapper
         run: |
@@ -60,13 +60,13 @@ jobs:
           branch="master"
           if [[ ${{ env.version }} == *"-alpha"* ]]; then
             branch="develop"
-            sonar-scanner \
+            sonar-scanner -X \
               --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
               --define sonar.projectVersion="${{ env.version }}" \
               --define sonar.branch.name="$branch" \
               --define sonar.branch.target="$branch"
           else
-            sonar-scanner \
+            sonar-scanner -X \
               --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
               --define sonar.projectVersion="${{ env.version }}"
           fi
