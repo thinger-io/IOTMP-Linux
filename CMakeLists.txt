@@ -6,9 +6,9 @@ if (${CMAKE_VERSION} VERSION_GREATER "3.24")
 endif()
 
 # set package version
-SET(VERSION_MAJOR "0" CACHE STRING "Major version number")
-set(VERSION_MINOR "0" CACHE STRING "Minor version number")
-set(VERSION_PATCH "1" CACHE STRING "Patch version number")
+SET(VERSION_MAJOR "1" CACHE STRING "Major version number")
+set(VERSION_MINOR "2" CACHE STRING "Minor version number")
+set(VERSION_PATCH "0" CACHE STRING "Patch version number")
 
 # add version for source code
 add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
