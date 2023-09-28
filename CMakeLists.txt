@@ -91,7 +91,9 @@ endif()
 list(APPEND ADDITIONAL_LIBS util)
 
 # Add atomic for 32 bit arm
-if("${ARCH}" MATCHES "^armv7m")
+if("${ARCH}" MATCHES "^armv7m" OR
+   "${ARCH}" MATCHES "^mips" OR
+   "${ARCH}" MATCHES "^x32")
   message(STATUS "Linking against libatomic")
   list(APPEND ADDITIONAL_LIBS atomic)
 endif()
