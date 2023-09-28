@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Install sonar-scanner and build-wrapper
-        uses: sonarsource/sonarcloud-github-c-cpp@v2
+        uses: sonarsource/sonarcloud-github-c-cpp@v1
 
       - name: Run build-wrapper
         run: |
