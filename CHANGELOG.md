@@ -1,11 +1,15 @@
 # Changelog
 
-## [1.2.0] - 2023-08-17
+## 1.2.1 - 2023-09-29
+### Changed
+- Change module name to thinger\_iotmp
+
+## 1.2.0 - 2023-09-28
 ### Added
 - Add new THINGER\_STREAMS\_READY state listener
 - Install script and service file
 
-## [1.1.0] - 2023-06-28
+## 1.1.0 - 2023-06-28
 ### Added
 - Allow static linking
 - Logging with spdlog as alternative to loguru
@@ -20,5 +24,5 @@
 ### Removed
 - Unmaintained loguru library
 
-## [1.0.0] - 2023-09-03
+## 1.0.0 - 2023-09-03
 - First version

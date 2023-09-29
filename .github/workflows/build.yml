@@ -8,7 +8,7 @@ on:
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  MODULE: thinger-iotmp
+  MODULE: thinger_iotmp
   BUILD_TYPE: Release
   OPENSSL_ROOT_DIR: /usr/lib/ssl
 
