@@ -1,15 +1,18 @@
 # Changelog
 
-## 1.2.1 - 2023-09-29
+## [1.2.1] - 2023-09-29
 ### Changed
 - Change module name to thinger\_iotmp
 
-## 1.2.0 - 2023-09-28
+### Fixed
+- Installer returning empty device id when network connection set by ppp interface
+
+## [1.2.0] - 2023-09-28
 ### Added
 - Add new THINGER\_STREAMS\_READY state listener
 - Install script and service file
 
-## 1.1.0 - 2023-06-28
+## [1.1.0] - 2023-06-28
 ### Added
 - Allow static linking
 - Logging with spdlog as alternative to loguru
@@ -24,5 +27,10 @@
 ### Removed
 - Unmaintained loguru library
 
-## 1.0.0 - 2023-09-03
+## [1.0.0] - 2023-09-03
 - First version
+
+[1.2.1]: https://github.com/thinger-io/IOTMP-Linux/compare/1.2.0...1.2.1
+[1.2.0]: https://github.com/thinger-io/IOTMP-Linux/compare/1.1.0...1.2.0
+[1.1.0]: https://github.com/thinger-io/IOTMP-Linux/compare/1.0.0...1.1.0
+[1.0.0]: https://github.com/thinger-io/IOTMP-Linux/tag/1.0.0
