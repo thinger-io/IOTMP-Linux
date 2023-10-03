@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.11...3.21)
-project(thinger-iotmp)
+project(thinger_iotmp)
 
 if (${CMAKE_VERSION} VERSION_GREATER "3.24")
   cmake_policy(SET CMP0135 NEW)

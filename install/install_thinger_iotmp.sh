@@ -157,11 +157,15 @@ if [ ! -f "$config_filename" ]; then
     fi
 
     MAC=`ip link show $(ip route show default | awk '/default/ {print $5}') | awk '/link\/ether/ {print $2}' | sed 's/://g' | tr '[:lower:]' '[:upper:]'`
-    DEVICE_KEY=`echo $MAC | base64 -d | openssl sha256 -hex -mac HMAC -macopt hexkey:$KEY_HEX | awk '{print $2}'`
+    if [ -z "${MAC+x}" ]; then
+        MAC=`ip link show $(ip -o link | grep ether | awk '{ print $2}' | sed 's/://g') | awk '/link\/ether/ {print $2}' | sed 's/://g' | tr '[:lower:]' '[:upper:]'`
+    fi
 
     if [ -z "${device+x}" ]; then
       device="$prefix"_"$MAC"
     fi
+
+    DEVICE_KEY=`echo $device | base64 -d | openssl sha256 -hex -mac HMAC -macopt hexkey:$KEY_HEX | awk '{print $2}'`
 
     cat > "$config_dir/$config_filename" << EOF
 username=$username
