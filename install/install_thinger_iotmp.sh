@@ -165,7 +165,7 @@ if [ ! -f "$config_filename" ]; then
       device="$prefix"_"$MAC"
     fi
 
-    DEVICE_KEY=`echo $device | base64 -d | openssl sha256 -hex -mac HMAC -macopt hexkey:$KEY_HEX | awk '{print $2}'`
+    DEVICE_KEY=`echo $device | openssl sha256 -hex -mac HMAC -macopt hexkey:$KEY_HEX | awk '{print $2}'`
 
     cat > "$config_dir/$config_filename" << EOF
 username=$username

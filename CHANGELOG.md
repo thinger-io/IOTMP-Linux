@@ -1,6 +1,10 @@
 # Changelog
 
-## [1.2.1] - 2023-09-29
+## [1.2.2] - 2023-10-03
+### Fix
+- Bug in installer not allowing setting of credentials
+
+## [1.2.1] - 2023-10-03
 ### Changed
 - Change module name to thinger\_iotmp
 
@@ -30,6 +34,7 @@
 ## [1.0.0] - 2023-09-03
 - First version
 
+[1.2.2]: https://github.com/thinger-io/IOTMP-Linux/compare/1.2.1...1.2.2
 [1.2.1]: https://github.com/thinger-io/IOTMP-Linux/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/thinger-io/IOTMP-Linux/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/thinger-io/IOTMP-Linux/compare/1.0.0...1.1.0
