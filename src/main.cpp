@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
     // read parameters from environment variables
     po::store(po::parse_environment(desc, "THINGER_"), vm);
 
+    po::notify(vm);
+
     // load them also from config file in $HOME/.thinger/iotmp.cfg
     try {
       if (!config_path.empty()) {
@@ -88,8 +90,6 @@ int main(int argc, char *argv[])
     } catch (const po::reading_file& e) {
       LOG_ERROR("error while loading config file: %s", e.what());
     }
-
-    po::notify(vm);
 
     if (vm.count("help")) {
         std::cout << desc << std::endl;
