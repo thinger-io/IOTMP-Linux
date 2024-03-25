@@ -5,6 +5,7 @@
 ### Added
 
 - Support for installing and demonizing client in procd - openwrt systems
+- Configuration file path can now be set through program options
 
 ## [1.2.2] - 2023-10-03
 

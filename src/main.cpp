@@ -43,30 +43,20 @@ int main(int argc, char *argv[])
     std::string credentials;
     std::string hostname;
     std::string transport;
+    std::string config_path;
 
     namespace po = boost::program_options;
 
     po::options_description desc("options_description [options]");
     desc.add_options()
         ("help", "show this help")
-        ("verbosity,v",
-         po::value<int>(&verbosity_level)->default_value(DEFAULT_VERBOSITY_LEVEL),
-         "set verbosity level")
-        ("username,u",
-         po::value<std::string>(&username)->default_value(DEFAULT_USERNAME),
-         "username")
-        ("device,d",
-         po::value<std::string>(&device)->default_value(DEFAULT_DEVICE),
-         "device identifier")
-        ("password,p",
-         po::value<std::string>(&credentials)->default_value(DEFAULT_CREDENTIAL),
-         "device credential")
-        ("host,h",
-         po::value<std::string>(&hostname)->default_value(DEFAULT_HOSTNAME),
-         "target hostname")
-        ("transport,t",
-         po::value<std::string>(&transport)->default_value(DEFAULT_TRANSPORT),
-         "connection transport, i.e., 'websocket'");
+        ("verbosity,v", po::value<int>(&verbosity_level)->default_value(DEFAULT_VERBOSITY_LEVEL), "set verbosity level")
+        ("username,u", po::value<std::string>(&username)->default_value(DEFAULT_USERNAME), "username")
+        ("device,d", po::value<std::string>(&device)->default_value(DEFAULT_DEVICE), "device identifier")
+        ("password,p", po::value<std::string>(&credentials)->default_value(DEFAULT_CREDENTIAL), "device credential")
+        ("host,h", po::value<std::string>(&hostname)->default_value(DEFAULT_HOSTNAME), "target hostname")
+        ("transport,t", po::value<std::string>(&transport)->default_value(DEFAULT_TRANSPORT), "connection transport, i.e., 'websocket'")
+        ("config,c", po::value<std::string>(&config_path)->default_value(std::filesystem::path{home} / ".thinger" / "iotmp.cfg"), "location of credentials");
 
     // initialize default values and description
     po::parse_command_line(argc, argv, desc);
@@ -82,17 +72,16 @@ int main(int argc, char *argv[])
 
     // load them also from config file in $HOME/.thinger/iotmp.cfg
     try {
-        const char* home = getenv("HOME");
-        if(home != nullptr){
-            std::filesystem::path config_file = std::filesystem::path{home} / ".thinger" / "iotmp.cfg";
-            if(exists(config_file)){
-                po::store(po::parse_config_file<char>(config_file.string().c_str(), desc), vm);
-            }
-        }else{
-            LOG_WARNING("cannot read HOME environment variable");
+      if (!config_path.empty()) {
+        auto config_file = std::filesystem::path{config_path};
+
+        if (exists(config_file)) {
+          po::store(po::parse_config_file<char>(config_file.string().c_str(), desc), vm);
+          po::notify(vm);
         }
+      }
     } catch (const po::reading_file& e) {
-        LOG_ERROR("error while loading config file: %s", e.what());
+      LOG_ERROR("error while loading config file: %s", e.what());
     }
 
     po::notify(vm);

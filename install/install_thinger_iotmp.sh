@@ -156,7 +156,17 @@ if [ -n "${SSL_CERT_DIR+x}" ]; then
 fi
 
 if [ -z "${version+x}" ]; then
-  version="`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/latest | grep "tag_name" | cut -d '"' -f4`"
+  if type curl > /dev/null; then
+    version=$(curl -s -L -H "Accept: application/vnd.github.v3+json" "https://$_github_api_url/repos/thinger-io/$_repo/releases/latest" | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
+  else
+    # Check GNU wget is installed
+    ls -lah $(which wget) | grep -E 'busybox|uclient' > /dev/null 2>&1
+    if [ "$?" -eq 0 ]; then
+      echo "[ERROR] Failed installation due to missing GNU wget. Please install GNU wget or curl and relaunch the script"
+      exit 2
+    fi
+    version="`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/latest | grep "tag_name" | cut -d '"' -f4`"
+  fi
 fi
 
 if [ "$INIT" == "procd" ]; then
@@ -164,7 +174,12 @@ if [ "$INIT" == "procd" ]; then
     service "$_module" stop
     service "$_module" disable
   fi
-  wget -q --header="Accept: application/vnd.github.VERSION.raw" https://"$_github_api_url"/repos/thinger-io/"$_repo"/contents/install/procd/"$_module"?ref="$version" -P "$service_dir" -O "$service_dir"/"$_module"
+  if type curl > /dev/null; then
+    curl -s -L -H "Accept: application/vnd.github.VERSION.raw" "https://$_github_api_url/repos/thinger-io/$_repo/contents/install/procd/$_module?ref=$version" -o "$service_dir/$_module"
+  else
+    wget -q --header="Accept: application/vnd.github.VERSION.raw" https://"$_github_api_url"/repos/thinger-io/"$_repo"/contents/install/procd/"$_module"?ref="$version" -P "$service_dir" -O "$service_dir"/"$_module"
+  fi
+  chmod +x "$service_dir/$_module"
 elif [ "$INIT" == "systemd" ]; then
   # Download service file -> Before downloading binary
   if [ -f "$service_dir"/"$_module".service ]; then
@@ -177,10 +192,18 @@ elif [ "$INIT" == "systemd" ]; then
 fi
 
 # Download bin
-version_release_body=`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/tags/"$version"`
+if type curl > /dev/null; then
+  version_release_body=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://$_github_api_url/repos/thinger-io/$_repo/releases/tags/$version")
+else
+  version_release_body=`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/tags/"$version"`
+fi
 download_url=`echo "$version_release_body" | grep "url.*$_arch" | cut -d '"' -f4`
 
-wget -q --header="Accept: application/octec-stream" "$download_url" -O "$bin_dir/$_module"
+if type curl > /dev/null; then
+  curl -s -L -H "Accept: application/octet-stream" "$download_url" -o "$bin_dir/$_module"
+else
+  wget -q --header="Accept: application/octec-stream" "$download_url" -O "$bin_dir/$_module"
+fi
 chmod +x "$bin_dir"/"$_module"
 
 # Provision iotmp client config
@@ -194,7 +217,7 @@ if [ ! -f "$config_filename" ]; then
       echo "Using default seed"
       KEY_HEX='4eee5a11576b5c532f068f71ab177d07'
     else
-      KEY_HEX=$(echo -n "$seed" | xxd -p)
+      KEY_HEX=$(echo -n "$seed" | hexdump -ve '/1 "%02x"')
     fi
 
     MAC=`ip link show $(ip route show default | awk '/default/ {print $5}') | awk '/link\/ether/ {print $2}' | sed 's/://g' | tr '[:lower:]' '[:upper:]'`
