@@ -45,6 +45,11 @@ int main(int argc, char *argv[])
     std::string transport;
     std::string config_path;
 
+    const char* home = getenv("HOME");
+    if ( home != nullptr ) {
+      config_path = std::filesystem::path{home} / ".thinger" / "iotmp.cfg";
+    }
+
     namespace po = boost::program_options;
 
     po::options_description desc("options_description [options]");
@@ -56,7 +61,7 @@ int main(int argc, char *argv[])
         ("password,p", po::value<std::string>(&credentials)->default_value(DEFAULT_CREDENTIAL), "device credential")
         ("host,h", po::value<std::string>(&hostname)->default_value(DEFAULT_HOSTNAME), "target hostname")
         ("transport,t", po::value<std::string>(&transport)->default_value(DEFAULT_TRANSPORT), "connection transport, i.e., 'websocket'")
-        ("config,c", po::value<std::string>(&config_path)->default_value(std::filesystem::path{home} / ".thinger" / "iotmp.cfg"), "location of credentials");
+        ("config,c", po::value<std::string>(&config_path), "location of credentials");
 
     // initialize default values and description
     po::parse_command_line(argc, argv, desc);
