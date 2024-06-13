@@ -8,7 +8,7 @@ endif()
 # set package version
 SET(VERSION_MAJOR "1" CACHE STRING "Major version number")
 set(VERSION_MINOR "2" CACHE STRING "Minor version number")
-set(VERSION_PATCH "0" CACHE STRING "Patch version number")
+set(VERSION_PATCH "3" CACHE STRING "Patch version number")
 
 # add version for source code
 add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
@@ -34,6 +34,7 @@ include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)
 CHECK_CXX_COMPILER_FLAG("-std=c++20" COMPILER_SUPPORTS_CXX20)
 if(COMPILER_SUPPORTS_CXX20)
+    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} is using version C++20.")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 elseif(COMPILER_SUPPORTS_CXX17)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
@@ -112,8 +113,8 @@ endif()
 
 include(FetchContent)
 
-# fmt
-FetchContent_Declare(fmt URL https://github.com/fmtlib/fmt/releases/download/9.1.0/fmt-9.1.0.zip)
+# fmt: required for muslcc
+FetchContent_Declare(fmt URL https://github.com/fmtlib/fmt/releases/download/10.2.1/fmt-10.2.1.zip)
 FetchContent_MakeAvailable(fmt)
 list(APPEND ADDITIONAL_LIBS fmt::fmt)
 
@@ -121,7 +122,7 @@ list(APPEND ADDITIONAL_LIBS fmt::fmt)
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.11.0
+  GIT_TAG v1.14.1
 )
 FetchContent_MakeAvailable(spdlog)
 add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)

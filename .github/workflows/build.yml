@@ -15,7 +15,8 @@ env:
 jobs:
 
   build_version:
-    runs-on: ubuntu-latest
+    #runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -33,7 +34,8 @@ jobs:
         fi
 
   build:
-    runs-on: ubuntu-latest
+    #runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     needs: build_version
     strategy:
       fail-fast: false # continues with matrix even if an element fails
@@ -70,7 +72,8 @@ jobs:
 
   upload_to_release: # when tag is created
     if: ${{ github.event_name == 'release' }}
-    runs-on: ubuntu-latest
+    #runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     needs: [build_version, build]
     strategy:
       fail-fast: false # continues with matrix even if an element fails
