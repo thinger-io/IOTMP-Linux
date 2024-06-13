@@ -6,12 +6,11 @@
 
 - Support for installing and demonizing client in procd - openwrt systems
 - Configuration file path can now be set through program options
-- 
+
 ### Changed
 
 - Bumped fmt to version 10.2.1
 - Bumped spdlog to version 1.14.1
-
 
 ## [1.2.2] - 2023-10-03
 
