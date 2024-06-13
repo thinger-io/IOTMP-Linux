@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 trap 'echo "Caught: 90 seconds till SIGKILL' SIGTERM # catches systemctl stop on update
 
@@ -16,7 +16,7 @@ case `uname -m` in
   *arm*)
     _arch="arm" ;;
   *aarch64*)
-    _arch="arm" ;;
+    _arch="aarch64" ;;
 esac
 
 usage() {
@@ -44,21 +44,43 @@ usage() {
     exit 0
 }
 
+INIT=
+get_init_system() {
+  ps | grep procd | grep -v 'grep' > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+    INIT="procd"
+    return
+  fi
+
+  ps -p 1 -o comm= | grep systemd | grep -v 'grep' > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+    INIT="systemd"
+    return
+  fi
+}
+
 set_directories() {
-    # Set install directories based on user
-    if [ "$UID" -eq 0 ]; then
+    # Check init system first
+    if [ "$INIT" == "procd" ]; then
+      export bin_dir="/usr/local/bin"
+      export config_dir="/etc/thinger/"
+      service_dir="/etc/init.d/"
+    elif [ "$INIT" == "systemd" ]; then
+      # Set install directories based on user
+      if [ "$UID" -eq 0 ]; then
         export bin_dir="/usr/local/bin/"
         export home_dir="$HOME"
         export config_dir="$home_dir/.thinger/"
         service_dir="/etc/systemd/system/"
         sys_user=""
-    else
+      else
         export bin_dir="$HOME/.local/bin/"
         export home_dir="$HOME"
         export config_dir="$home_dir/.thinger/"
         service_dir="$HOME/.config/systemd/user/"
         sys_user="--user"
 
+    fi
   fi
 }
 
@@ -70,9 +92,15 @@ uninstall() {
 
     rm -f "$bin_dir"/"$_module"
 
-    systemctl $sys_user stop "$_module"
-    systemctl $sys_user disable "$_module"
-    rm -f "$service_dir"/"$_module".service
+    if [ "$INIT" == "procd" ]; then
+      service "$_module" stop
+      service "$_module" disable
+      rm -f "$service_dir"/"$_module"
+    elif [ "$INIT" == "systemd" ]; then
+      systemctl $sys_user stop "$_module"
+      systemctl $sys_user disable "$_module"
+      rm -f "$service_dir"/"$_module".service
+    fi
 
     rm -f "$config_dir"/iotmp.cfg
 
@@ -81,7 +109,7 @@ uninstall() {
 }
 
 # Parse options
-while [[ "$#" -gt 0 ]]; do case $1 in
+while [ "$#" -gt 0 ]; do case $1 in
   -u | --username )
     shift; username="$1"
     ;;
@@ -114,6 +142,11 @@ while [[ "$#" -gt 0 ]]; do case $1 in
     ;;
 esac; shift; done
 
+get_init_system
+if [ -z "${INIT+x}" ]; then
+  exit -1
+fi
+
 set_directories
 mkdir -p $bin_dir $config_dir $service_dir
 
@@ -123,23 +156,54 @@ if [ -n "${SSL_CERT_DIR+x}" ]; then
 fi
 
 if [ -z "${version+x}" ]; then
-  version="`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/latest | grep "tag_name" | cut -d '"' -f4`"
+  if type curl > /dev/null; then
+    version=$(curl -s -L -H "Accept: application/vnd.github.v3+json" "https://$_github_api_url/repos/thinger-io/$_repo/releases/latest" | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
+  else
+    # Check GNU wget is installed
+    ls -lah $(which wget) | grep -E 'busybox|uclient' > /dev/null 2>&1
+    if [ "$?" -eq 0 ]; then
+      echo "[ERROR] Failed installation due to missing GNU wget. Please install GNU wget or curl and relaunch the script"
+      exit 2
+    fi
+    version="`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/latest | grep "tag_name" | cut -d '"' -f4`"
+  fi
 fi
 
-# Download service file -> Before downloading binary
-if [ -f "$service_dir"/"$_module".service ]; then
+if [ "$INIT" == "procd" ]; then
+  if [ -f "$service_dir"/"$_module" ]; then
+    service "$_module" stop
+    service "$_module" disable
+  fi
+  if type curl > /dev/null; then
+    curl -s -L -H "Accept: application/vnd.github.VERSION.raw" "https://$_github_api_url/repos/thinger-io/$_repo/contents/install/procd/$_module?ref=$version" -o "$service_dir/$_module"
+  else
+    wget -q --header="Accept: application/vnd.github.VERSION.raw" https://"$_github_api_url"/repos/thinger-io/"$_repo"/contents/install/procd/"$_module"?ref="$version" -P "$service_dir" -O "$service_dir"/"$_module"
+  fi
+  chmod +x "$service_dir/$_module"
+elif [ "$INIT" == "systemd" ]; then
+  # Download service file -> Before downloading binary
+  if [ -f "$service_dir"/"$_module".service ]; then
     systemctl $sys_user stop "$_module".service
     systemctl $sys_user disable "$_module".service
+  fi
+  wget -q --header="Accept: application/vnd.github.VERSION.raw" https://"$_github_api_url"/repos/thinger-io/"$_repo"/contents/install/systemd/"$_module".template?ref="$version" -P "$service_dir" -O "$service_dir"/"$_module".template
+  cat "$service_dir"/"$_module".template | envsubst '$home_dir,$certs_dir_env,$bin_dir,$config_dir' > "$service_dir"/"$_module".service
+  rm -f "$service_dir"/"$_module".template
 fi
-wget -q --header="Accept: application/vnd.github.VERSION.raw" https://"$_github_api_url"/repos/thinger-io/"$_repo"/contents/install/"$_module".template?ref="$version" -P "$service_dir" -O "$service_dir"/"$_module".template
-cat "$service_dir"/"$_module".template | envsubst '$home_dir,$certs_dir_env,$bin_dir,$config_dir' > "$service_dir"/"$_module".service
-rm -f "$service_dir"/"$_module".template
 
 # Download bin
-version_release_body=`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/tags/"$version"`
+if type curl > /dev/null; then
+  version_release_body=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://$_github_api_url/repos/thinger-io/$_repo/releases/tags/$version")
+else
+  version_release_body=`wget --quiet -qO- --header="Accept: application/vnd.github.v3+json" https://"$_github_api_url"/repos/thinger-io/"$_repo"/releases/tags/"$version"`
+fi
 download_url=`echo "$version_release_body" | grep "url.*$_arch" | cut -d '"' -f4`
 
-wget -q --header="Accept: application/octec-stream" "$download_url" -O "$bin_dir/$_module"
+if type curl > /dev/null; then
+  curl -s -L -H "Accept: application/octet-stream" "$download_url" -o "$bin_dir/$_module"
+else
+  wget -q --header="Accept: application/octec-stream" "$download_url" -O "$bin_dir/$_module"
+fi
 chmod +x "$bin_dir"/"$_module"
 
 # Provision iotmp client config
@@ -153,7 +217,7 @@ if [ ! -f "$config_filename" ]; then
       echo "Using default seed"
       KEY_HEX='4eee5a11576b5c532f068f71ab177d07'
     else
-      KEY_HEX=$(echo -n "$seed" | xxd -p)
+      KEY_HEX=$(echo -n "$seed" | hexdump -ve '/1 "%02x"')
     fi
 
     MAC=`ip link show $(ip route show default | awk '/default/ {print $5}') | awk '/link\/ether/ {print $2}' | sed 's/://g' | tr '[:lower:]' '[:upper:]'`
@@ -165,7 +229,11 @@ if [ ! -f "$config_filename" ]; then
       device="$prefix"_"$MAC"
     fi
 
-    DEVICE_KEY=`echo $device | openssl sha256 -hex -mac HMAC -macopt hexkey:$KEY_HEX | awk '{print $2}'`
+    if ! type openssl > /dev/null; then
+      DEVICE_KEY="$device"
+    else
+     DEVICE_KEY=`echo $device | openssl sha256 -hex -mac HMAC -macopt hexkey:$KEY_HEX | awk '{print $2}'`
+    fi
 
     cat > "$config_dir/$config_filename" << EOF
 username=$username
@@ -178,9 +246,15 @@ EOF
 fi
 
 # Start and enable service
-systemctl $sys_user daemon-reload
-systemctl $sys_user enable "$_module".service
-systemctl $sys_user start "$_module".service
+if [ "$INIT" == "procd" ]; then
+  service "$_module" reload
+  service "$_module" enable
+  service "$_module" start
+elif [ "$INIT" == "systemd" ]; then
+  systemctl $sys_user daemon-reload
+  systemctl $sys_user enable "$_module".service
+  systemctl $sys_user start "$_module".service
+fi
 
 exit 0
 

@@ -6,7 +6,8 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    #runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
 
@@ -15,7 +16,7 @@ jobs:
       run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
 
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
         ref: ${{ env.branch }}
