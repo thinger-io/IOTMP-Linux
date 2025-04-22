@@ -1,5 +1,5 @@
 #include "cmd.hpp"
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/process.hpp>
 
@@ -54,7 +54,7 @@ namespace thinger::iotmp{
         LOG_INFO("$ %s", command.c_str());
 
         try{
-            boost::asio::io_service svc;
+            boost::asio::io_context svc;
             namespace bp = boost::process;
 
             bp::async_pipe std_out(svc);

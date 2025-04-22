@@ -20,7 +20,7 @@ class socket : private boost::asio::noncopyable {
 
 public:
     // constructors and destructors
-    socket(const std::string &context, boost::asio::io_service &io_service);
+    socket(const std::string &context, boost::asio::io_context &io_context);
     virtual ~socket();
 
     // socket control
@@ -58,11 +58,11 @@ public:
     virtual std::string get_remote_port() const = 0;
 
     // other methods
-    boost::asio::io_service &get_io_service();
+    boost::asio::io_context &get_io_context();
 
 protected:
     std::string context_;
-    boost::asio::io_service &io_service_;
+    boost::asio::io_context &io_context_;
     static std::atomic<unsigned long> connections;
     static std::map<std::string, unsigned long> context_count;
     static std::mutex mutex_;

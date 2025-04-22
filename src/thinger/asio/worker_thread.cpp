@@ -1,6 +1,7 @@
 #include "worker_thread.hpp"
 #include "../util/logger.hpp"
 #include <future>
+#include <boost/asio/dispatch.hpp>
 
 namespace thinger::asio{
 
@@ -13,7 +14,7 @@ namespace thinger::asio{
                 // Set logger name based on worker
                 //loguru::set_thread_name(worker_name_.c_str());
             }
-            LOG_LEVEL(1, "worker thread started");
+            LOG_DEBUG("worker thread started");
 
             // start the async work in the child
             async_worker();
@@ -25,7 +26,7 @@ namespace thinger::asio{
             worker_.start();
 
             // stop
-            LOG_LEVEL(1, "worker thread stopped");
+            LOG_DEBUG("worker thread stopped");
         });
 
         // wait for thread to be initialized
@@ -42,18 +43,18 @@ namespace thinger::asio{
         return true;
     }
 
-    boost::asio::io_service &worker_thread::get_io_service() {
-        return worker_.get_io_service();
+    boost::asio::io_context &worker_thread::get_io_context() {
+        return worker_.get_io_context();
     }
 
     worker_thread::worker_thread(std::string worker_name) :
         worker_name_(std::move(worker_name))
     {
-        LOG_LEVEL(2, "worker thread created: %s", worker_name_.c_str());
+        LOG_DEBUG("worker thread created: %s", worker_name_.c_str());
     }
 
     worker_thread::~worker_thread(){
-        LOG_LEVEL(2, "worker thread deleted: %s", worker_name_.c_str());
+        LOG_DEBUG("worker thread deleted: %s", worker_name_.c_str());
     }
 
     void worker_thread::set_thread_name(std::string worker_name){
@@ -61,7 +62,7 @@ namespace thinger::asio{
     }
 
     void worker_thread::run(std::function<void()> handler) {
-        worker_.get_io_service().dispatch(std::move(handler));
+        boost::asio::dispatch(worker_.get_io_context(), std::move(handler));
     }
 
 }

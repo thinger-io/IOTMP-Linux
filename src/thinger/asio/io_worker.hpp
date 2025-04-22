@@ -1,7 +1,7 @@
 #ifndef THINGER_ASIO_IO_WORKER_HPP
 #define THINGER_ASIO_IO_WORKER_HPP
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 
 namespace thinger::asio{
 
@@ -12,11 +12,11 @@ namespace thinger::asio{
 
         void start();
         void stop();
-        boost::asio::io_service& get_io_service();
+        boost::asio::io_context& get_io_context();
 
     private:
-        boost::asio::io_service io_;
-        boost::asio::io_service::work work_;
+        boost::asio::io_context io_;
+        boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_;
     };
 
 }

@@ -25,13 +25,13 @@ namespace thinger::http {
                                          std::shared_ptr<http_client_connection>,
                                          std::shared_ptr<http_response>)> handler);
 
-    void send_request(boost::asio::io_service& io_service,
+    void send_request(boost::asio::io_context& io_context,
                       const std::shared_ptr<http_request>& request,
                       std::function<void(const boost::system::error_code&,
                                          std::shared_ptr<http_client_connection>,
                                          std::shared_ptr<http_response>)> handler);
 
-    void send_request(boost::asio::io_service& io_service,
+    void send_request(boost::asio::io_context& io_context,
                       const std::shared_ptr<http_request>& request,
                       const std::function<void(const boost::system::error_code&, std::shared_ptr<http_response>)>& handler,
                       unsigned int hops=0);

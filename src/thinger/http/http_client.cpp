@@ -35,41 +35,41 @@ namespace thinger::http {
 
     void send_request(const std::shared_ptr<http_request>& request, const std::function<void(const boost::system::error_code&, std::shared_ptr<http_response>)>& handler, unsigned int hops)
     {
-    	send_request(asio::workers.get_thread_io_service(), request, handler, hops);
+    	send_request(asio::workers.get_thread_io_context(), request, handler, hops);
     }
 
-    std::shared_ptr<http_client_connection> create_http_client_connection(boost::asio::io_service& io_service, const std::shared_ptr<http_request>& request){
+    std::shared_ptr<http_client_connection> create_http_client_connection(boost::asio::io_context& io_context, const std::shared_ptr<http_request>& request){
         const std::string& socket_path = request->get_unix_socket();
 
         if(socket_path.empty()){
             std::shared_ptr<thinger::asio::socket> sock;
             if(request->get_protocol()=="iotmp"){
-                //sock = std::make_shared<thinger::iotmp_socket>("iotmp_client", io_service);
+                //sock = std::make_shared<thinger::iotmp_socket>("iotmp_client", io_context);
             }else{
                 if(!request->is_ssl()){
-                    sock = std::make_shared<thinger::asio::tcp_socket>("http_client", io_service);
+                    sock = std::make_shared<thinger::asio::tcp_socket>("http_client", io_context);
                 }else{
                     auto ssl_context = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23_client);
                     ssl_context->set_default_verify_paths();
-                    sock = std::make_shared<thinger::asio::ssl_socket>("http_client", io_service, ssl_context);
+                    sock = std::make_shared<thinger::asio::ssl_socket>("http_client", io_context, ssl_context);
                 }
             }
 
             return std::make_shared<http_client_connection>(sock);
         }else{
-            std::shared_ptr<thinger::asio::unix_socket> sock = std::make_shared<thinger::asio::unix_socket>("http_client", io_service);
+            std::shared_ptr<thinger::asio::unix_socket> sock = std::make_shared<thinger::asio::unix_socket>("http_client", io_context);
             return std::make_shared<http_client_connection>(sock, socket_path);
         }
     }
 
-    std::shared_ptr<http_client_connection> get_http_client_connection(boost::asio::io_service& io_service, const std::shared_ptr<http_request>& request, bool cacheable=true){
+    std::shared_ptr<http_client_connection> get_http_client_connection(boost::asio::io_context& io_context, const std::shared_ptr<http_request>& request, bool cacheable=true){
         static thread_local std::unordered_map<std::string, std::weak_ptr<http_client_connection>> active_connections;
 
         // avoid sending empty request
         if(!request) return nullptr;
 
         // not cacheable ? create a new http client connection
-        if(!cacheable) return create_http_client_connection(io_service, request);
+        if(!cacheable) return create_http_client_connection(io_context, request);
 
         // check if we can reuse some cached connection
         std::shared_ptr<http_client_connection> connection;
@@ -90,36 +90,36 @@ namespace thinger::http {
         }
 
         if(!connection){
-            connection = create_http_client_connection(io_service, request);
+            connection = create_http_client_connection(io_context, request);
             active_connections[target_host] = connection;
         }
 
         return connection;
     }
 
-	void send_request(boost::asio::io_service& io_service,
+	void send_request(boost::asio::io_context& io_context,
                       const std::shared_ptr<http_request>& request,
                       const std::function<void(const boost::system::error_code&,
                                                std::shared_ptr<http_response>)>& handler,
                       unsigned int hops)
     {
-        send_request(request, get_http_client_connection(io_service, request), handler, hops);
+        send_request(request, get_http_client_connection(io_context, request), handler, hops);
     }
 
     void send_request(const std::shared_ptr<http_request>& request,
                       std::function<void(const boost::system::error_code&,
                                          std::shared_ptr<http_client_connection>,
                                          std::shared_ptr<http_response>)> handler){
-        send_request(asio::workers.get_thread_io_service(), request, std::move(handler));
+        send_request(asio::workers.get_thread_io_context(), request, std::move(handler));
     }
 
-    void send_request(boost::asio::io_service& io_service,
+    void send_request(boost::asio::io_context& io_context,
                       const std::shared_ptr<http_request>& request,
                       std::function<void(const boost::system::error_code&,
                                          std::shared_ptr<http_client_connection>,
                                          std::shared_ptr<http_response>)> handler){
 
-        auto connection = create_http_client_connection(io_service, request);
+        auto connection = create_http_client_connection(io_context, request);
         send_request(request, connection, [connection, handler=std::move(handler)]
                 (const boost::system::error_code& ec, std::shared_ptr<http_response> response){
             handler(ec, connection, std::move(response));

@@ -10,7 +10,7 @@ namespace thinger::asio{
 class ssl_socket : public tcp_socket {
 public:
     // constructors and destructors
-    ssl_socket(const std::string& context, boost::asio::io_service& io_service, std::shared_ptr<boost::asio::ssl::context> ssl_context);
+    ssl_socket(const std::string& context, boost::asio::io_context& io_context, std::shared_ptr<boost::asio::ssl::context> ssl_context);
 	ssl_socket(const std::string& context, std::shared_ptr<tcp_socket> socket, std::shared_ptr<boost::asio::ssl::context> ssl_context);
 	virtual ~ssl_socket();
 

@@ -76,16 +76,15 @@ namespace thinger::http {
      */
 
     void http_request::log(const char* scope, int level) const{
-        LOG_LEVEL(level, "[%s] %s %s", scope, http::get_method(method_).c_str(), get_uri().c_str());
+        LOG_INFO("[%s] %s %s", scope, http::get_method(method_).c_str(), get_uri().c_str());
 
         http_headers::log(scope, level+1);
 
         if(!content_.empty()){
-            LOG_LEVEL(level+2, "");
             std::istringstream f(content_);
             std::string line;
             while (std::getline(f, line)) {
-                LOG_LEVEL(level+2, "%s", line.c_str());
+                LOG_DEBUG("%s", line.c_str());
             }
         }
     }

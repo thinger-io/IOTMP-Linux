@@ -19,7 +19,7 @@ namespace thinger::iotmp{
     terminal_session::terminal_session(client& client, uint16_t stream_id, std::string session,
                                        pson& parameters)
             : stream_session(client, stream_id, std::move(session)),
-              descriptor_(client.get_io_service()),
+              descriptor_(client.get_io_context()),
               read_buffer_(BUFFER_SIZE)
     {
         // check terminal to use
@@ -98,7 +98,7 @@ namespace thinger::iotmp{
         }else if(pid_>0){
             THINGER_LOG("terminal started (pid %d): %s", pid_, name);
             // parent process just open the descriptor
-            descriptor_ = boost::asio::posix::stream_descriptor(client_.get_io_service(), master);
+            descriptor_ = boost::asio::posix::stream_descriptor(client_.get_io_context(), master);
             handle_read();
             return handler(true);
         }

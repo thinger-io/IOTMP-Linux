@@ -20,7 +20,7 @@ class tcp_socket : public socket {
 
 public:
     // constructors and destructors
-    tcp_socket(const std::string &context, boost::asio::io_service &io_service);
+    tcp_socket(const std::string &context, boost::asio::io_context &io_context);
     tcp_socket(const std::string &context, const std::shared_ptr<tcp_socket>& tcp_socket);
     ~tcp_socket() override;
 

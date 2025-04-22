@@ -27,7 +27,7 @@ public:
 
     // constructors and destructors
     websocket(std::shared_ptr<socket> socket, bool binary = true, bool server = true);
-    websocket(boost::asio::io_service& io_service, bool binary = true, bool server = true);
+    websocket(boost::asio::io_context& io_context, bool binary = true, bool server = true);
     virtual ~websocket() override;
 
     // socket control

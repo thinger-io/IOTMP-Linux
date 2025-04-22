@@ -29,18 +29,9 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
-# check c++17 or c++20 support
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)
-CHECK_CXX_COMPILER_FLAG("-std=c++20" COMPILER_SUPPORTS_CXX20)
-if(COMPILER_SUPPORTS_CXX20)
-    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} is using version C++20.")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
-elseif(COMPILER_SUPPORTS_CXX17)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
-else()
-  message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++17 support. Please use a different C++ compiler.")
-endif()
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # configure Thinger.io parameters
 OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
@@ -52,7 +43,7 @@ SET(ARCH "x86_64" CACHE STRING "Compiler architecure")
 if (APPLE)
     # This is a bug in CMake that causes it to prefer the system version over
     # the one in the specified ROOT folder.
-    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/Cellar/openssl@1.1/1.1.1s/)
+    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /opt/homebrew/Cellar/openssl@3/3.3.0/)
     set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib CACHE FILEPATH "" FORCE)
     set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libssl.dylib CACHE FILEPATH "" FORCE)
 endif()

@@ -141,14 +141,14 @@ void http_response::debug(std::ostream& os) {
 }*/
 
     void http_response::log(const char* scope, int level) const{
-        LOG_LEVEL(level, "[%s] %s", scope, status_strings::get_status_string(status_).c_str());
+        LOG_INFO("[%s] %s", scope, status_strings::get_status_string(status_).c_str());
         {
-            LOG_LEVEL(level + 1, "[headers]");
+            LOG_DEBUG("[headers]");
             http_headers::log(scope, level + 1);
         }
         if(!content_.empty()){
-            LOG_LEVEL(level + 2, "[body]");
-            LOG_LEVEL(level + 2, "%s", content_.c_str());
+            LOG_TRACE("[body]");
+            LOG_TRACE("%s", content_.c_str());
         }
     }
 

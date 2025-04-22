@@ -10,7 +10,7 @@ namespace thinger::http {
         socket_(std::move(socket))
     {
         connections++;
-        LOG_LEVEL(3, "created http client connection. total: %u", unsigned(connections));
+        LOG_TRACE("created http client connection. total: %u", unsigned(connections));
     }
 
     http_client_connection::http_client_connection(std::shared_ptr<thinger::asio::unix_socket> socket, const std::string& path) :
@@ -18,12 +18,12 @@ namespace thinger::http {
         socket_path_(path)
     {
         connections++;
-        LOG_LEVEL(3, "created http client connection (for unix socket: %s). total: %u", path.c_str(), unsigned(connections));
+        LOG_TRACE("created http client connection (for unix socket: %s). total: %u", path.c_str(), unsigned(connections));
     }
 
     http_client_connection::~http_client_connection() {
         connections--;
-        LOG_LEVEL(3, "releasing http client connection. total: %u", unsigned(connections));
+        LOG_TRACE("releasing http client connection. total: %u", unsigned(connections));
     }
 
     void http_client_connection::handle_socket_connection(boost::system::error_code e) {
@@ -33,7 +33,7 @@ namespace thinger::http {
         // get front request
         auto request = request_queue_.front().first;
 
-        LOG_LEVEL(2, "connecting to: %s:%s (attempt #%d)", request->get_host().c_str(), request->get_port().c_str(), current_retries_);
+        LOG_TRACE("connecting to: %s:%s (attempt #%d)", request->get_host().c_str(), request->get_port().c_str(), current_retries_);
 
         if (current_retries_ >= MAX_RETRIES) {
             LOG_ERROR("aborting http request. cannot connect to server. tried: %d times", current_retries_);
@@ -68,7 +68,7 @@ namespace thinger::http {
                 return handle_error(e);
             }
 
-            LOG_LEVEL(2, "connection established");
+            LOG_TRACE("connection established");
 
             // start shared keeper after the connection is alive!
             start();
@@ -202,16 +202,16 @@ namespace thinger::http {
 
     void http_client_connection::start() {
         if (!shared_keeper_) {
-            shared_keeper_ = std::make_shared<thinger::util::shared_keeper<http_client_connection>>(socket_->get_io_service());
+            shared_keeper_ = std::make_shared<thinger::util::shared_keeper<http_client_connection>>(socket_->get_io_context());
             // start shared keeper to avoid instance drop
             shared_keeper_->keep(shared_from_this(), [this]() {
-                LOG_LEVEL(2, "http client connection timed out after %" PRId64 " seconds", CLIENT_CONNECTION_TIMEOUT_SECONDS.count());
+                LOG_TRACE("http client connection timed out after %" PRId64 " seconds", CLIENT_CONNECTION_TIMEOUT_SECONDS.count());
                 handle_error(boost::asio::error::timed_out);
             }, CLIENT_CONNECTION_TIMEOUT_SECONDS);
         }else{
             if(shared_keeper_->timed_out()){
                 shared_keeper_->keep(shared_from_this(), [this]() {
-                    LOG_LEVEL(2, "http client connection timed out after %" PRId64 " seconds", CLIENT_CONNECTION_TIMEOUT_SECONDS.count());
+                    LOG_TRACE("http client connection timed out after %" PRId64 " seconds", CLIENT_CONNECTION_TIMEOUT_SECONDS.count());
                     handle_error(boost::asio::error::timed_out);
                 }, CLIENT_CONNECTION_TIMEOUT_SECONDS);
             }else{
@@ -222,7 +222,7 @@ namespace thinger::http {
 
     void http_client_connection::send_request(std::shared_ptr<http_request> request, std::function<void(const boost::system::error_code &, std::shared_ptr<http_response>)> handler) {
         // save request and initiate connection or handle output queue
-        socket_->get_io_service().post([this, request=std::move(request), handler=std::move(handler), self = shared_from_this()] {
+        boost::asio::post(socket_->get_io_context(), [this, request=std::move(request), handler=std::move(handler), self = shared_from_this()] {
             size_t queue_size = request_queue_.size();
             if (queue_size >= MAX_OUTPUT_REQUESTS) {
                 LOG_WARNING("discarding http request, output queue is complete (%d)", MAX_OUTPUT_REQUESTS);

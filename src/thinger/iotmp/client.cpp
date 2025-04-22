@@ -3,16 +3,16 @@
 namespace thinger::iotmp{
 
     client::client(std::string transport, bool shared_pool) :
-            io_service_(shared_pool ? asio::workers.get_next_io_service() : asio::workers.get_isolated_io_service("iotmp client")),
-            async_timer_(io_service_),
+            io_context_(shared_pool ? asio::workers.get_next_io_context() : asio::workers.get_isolated_io_context("iotmp client")),
+            async_timer_(io_context_),
             transport_(std::move(transport))
     {
         if(transport_=="websocket"){
-            socket_ = std::make_unique<thinger::asio::websocket>(io_service_, true, false);
+            socket_ = std::make_unique<thinger::asio::websocket>(io_context_, true, false);
         }else{
             auto ssl_ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23_client);
             ssl_ctx->set_verify_mode(boost::asio::ssl::verify_none);
-            socket_ = std::make_unique<thinger::asio::ssl_socket>("iotmp_client", io_service_, ssl_ctx);
+            socket_ = std::make_unique<thinger::asio::ssl_socket>("iotmp_client", io_context_, ssl_ctx);
         }
     }
 
@@ -46,7 +46,7 @@ namespace thinger::iotmp{
 
 
     void client::start(std::function<void(exec_result)> callback){
-        io_service_.dispatch([this, callback=std::move(callback)](){
+        boost::asio::dispatch(io_context_, [this, callback=std::move(callback)](){
             if(running_){
                 if(callback) callback({false});
                 return;
@@ -61,7 +61,7 @@ namespace thinger::iotmp{
     }
 
     void client::stop(std::function<void(exec_result)> callback){
-        io_service_.dispatch([this, callback=std::move(callback)](){
+        boost::asio::dispatch(io_context_, [this, callback=std::move(callback)](){
             if(!running_){
                 if(callback) callback({false});
                 return;
@@ -75,7 +75,7 @@ namespace thinger::iotmp{
 
     bool client::run(std::function<bool()> callback){
         std::promise<bool> p;
-        io_service_.dispatch([this, &p, callback=std::move(callback)](){
+        boost::asio::dispatch(io_context_, [this, &p, callback=std::move(callback)](){
             if(!connected()){
                 p.set_value(false);
                 return;
@@ -85,8 +85,8 @@ namespace thinger::iotmp{
         return p.get_future().get();
     }
 
-    boost::asio::io_service& client::get_io_service(){
-        return io_service_;
+    boost::asio::io_context& client::get_io_context(){
+        return io_context_;
     }
 
     void client::authenticate(){

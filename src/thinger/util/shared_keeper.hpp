@@ -12,8 +12,8 @@ namespace thinger::util{
     class shared_keeper : public std::enable_shared_from_this<shared_keeper<T>>{
     public:
 
-        shared_keeper(boost::asio::io_service& io_service) :
-            timer_(io_service)
+        shared_keeper(boost::asio::io_context& io_context) :
+            timer_(io_context)
         {
 
         }
@@ -77,7 +77,7 @@ namespace thinger::util{
                             }
                         }
                     }else{
-                        LOG_LEVEL(3, "shared_keeper cancelled: %s", e.message().c_str());
+                        LOG_TRACE("shared_keeper cancelled: %s", e.message().c_str());
                         shared_instance_.reset();
                     }
                 }

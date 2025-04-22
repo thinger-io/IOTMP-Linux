@@ -57,7 +57,7 @@ namespace thinger::iotmp{
         void stop(std::function<void(exec_result)> callback = {});
         bool run(std::function<bool()> callback);
 
-        boost::asio::io_service& get_io_service();
+        boost::asio::io_context& get_io_context();
 
     protected:
 
@@ -75,7 +75,7 @@ namespace thinger::iotmp{
         std::unique_ptr<thinger::asio::socket> socket_;
         std::string transport_;
 
-        boost::asio::io_service& io_service_;
+        boost::asio::io_context& io_context_;
         thinger::util::async_timer async_timer_;
 
         uint8_t out_buffer_[WRITE_SOCKET_BUFFER];

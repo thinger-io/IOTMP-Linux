@@ -9,7 +9,7 @@ namespace thinger::util{
 
     public:
 
-        async_timer(boost::asio::io_service& io_service) : timer_(io_service){
+        async_timer(boost::asio::io_context& io_context) : timer_(io_context){
 
         }
 

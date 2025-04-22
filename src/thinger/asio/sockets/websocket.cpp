@@ -45,34 +45,34 @@ namespace thinger::asio{
     */
 
     websocket::websocket(std::shared_ptr<socket> socket, bool binary, bool server) :
-        asio::socket("websocket", socket->get_io_service()),
+        asio::socket("websocket", socket->get_io_context()),
         socket_(socket),
-        timer_(socket->get_io_service()),
+        timer_(socket->get_io_context()),
         binary_(binary),
         server_role_(server)
     {
-        LOG_LEVEL(2, "websocket created");
+        LOG_TRACE("websocket created");
     }
 
-    websocket::websocket(boost::asio::io_service& io_service, bool binary, bool server) :
-            asio::socket("websocket", io_service),
-            timer_(io_service),
+    websocket::websocket(boost::asio::io_context& io_context, bool binary, bool server) :
+            asio::socket("websocket", io_context),
+            timer_(io_context),
             binary_(binary),
             server_role_(server)
     {
-        LOG_LEVEL(2, "websocket created");
+        LOG_TRACE("websocket created");
     }
 
     websocket::~websocket()
     {
-        LOG_LEVEL(2, "releasing websocket");
+        LOG_TRACE("releasing websocket");
         boost::system::error_code ec;
         timer_.cancel(ec);
     }
 
     void websocket::decode(uint8_t buffer[], std::size_t size, uint8_t mask[]){
-        LOG_LEVEL(3, "decoding payload. size: %zu bytes masked: %d", size, mask!=nullptr);
-        LOG_LEVEL(3, "applying mask on input data: 0x%02X%02X%02X%02X", mask[0], mask[1], mask[2], mask[3]);
+        LOG_TRACE("decoding payload. size: %zu bytes masked: %d", size, mask!=nullptr);
+        LOG_TRACE("applying mask on input data: 0x%02X%02X%02X%02X", mask[0], mask[1], mask[2], mask[3]);
         for(auto i=0; i<size; ++i){
             buffer[i] ^= mask[i%MASK_SIZE_BYTES];
         }
@@ -108,7 +108,7 @@ namespace thinger::asio{
                     });
                 // already send a ping, and still no data... just close connection
                 }else{
-                    LOG_LEVEL(3, "websocket ping timeout... closing connection!");
+                    LOG_DEBUG("websocket ping timeout... closing connection!");
                     close();
                 }
             }
@@ -116,16 +116,16 @@ namespace thinger::asio{
     }
 
     void websocket::send_close(uint8_t buffer[], size_t size, ec_handler handler){
-        LOG_LEVEL(3, "sending close frame");
+        LOG_TRACE("sending close frame");
         handle_write(0x88, buffer, size, [this, handler=std::move(handler)](const boost::system::error_code& e, std::size_t bytes_transferred){
             if(e){
                 close();
                 return handler(e);
             }
             close_sent_ = true;
-            LOG_LEVEL(2, "close frame sent");
+            LOG_TRACE("close frame sent");
             if(close_received_){
-                LOG_LEVEL(2, "close sent, connection disposed");
+                LOG_TRACE("close sent, connection disposed");
                 close();
                 handler(e);
             }else{
@@ -150,17 +150,17 @@ namespace thinger::asio{
     }
 
     void websocket::send_ping(uint8_t buffer[], size_t size, ec_handler handler){
-        LOG_LEVEL(3, "sending ping frame");
+        LOG_TRACE("sending ping frame");
         handle_write(0x09, buffer, size, [handler=std::move(handler)](const boost::system::error_code& e, std::size_t bytes_transferred){{
-            LOG_LEVEL(3, "ping frame sent");
+            LOG_TRACE("ping frame sent");
             if(handler) handler(e);
         }});
     }
 
     void websocket::send_pong(uint8_t buffer[], size_t size, ec_handler handler){
-        LOG_LEVEL(3, "sending pong frame");
+        LOG_TRACE("sending pong frame");
         handle_write(0x0A, buffer, size, [handler=std::move(handler)](const boost::system::error_code& e, std::size_t bytes_transferred){{
-            LOG_LEVEL(3, "pong frame sent");
+            LOG_TRACE("pong frame sent");
             if(handler) handler(e);
         }});
     }
@@ -180,10 +180,10 @@ namespace thinger::asio{
             // used for potential text and binary fragmented messages
             switch(opcode){
                 case 0x8:     // connection close
-                    LOG_LEVEL(2, "received close frame");
+                    LOG_TRACE("received close frame");
                     close_received_ = true;
                     if(close_sent_){
-                        LOG_LEVEL(2, "close already sent, stopping client");
+                        LOG_TRACE("close already sent, stopping client");
                         // notify handler that we will not read anything else
                         return handler(boost::asio::error::connection_aborted, 0);
                     }else{
@@ -194,13 +194,13 @@ namespace thinger::asio{
                         });
                     }
                 case 0x9:     // ping
-                    LOG_LEVEL(2, "received ping frame");
+                    LOG_TRACE("received ping frame");
                     return send_pong(buffer, size, [this, buffer, max_size, handler=std::move(handler)](const boost::system::error_code& ec){
                         // keep reading data for the handler
                         if(!ec) handle_read(buffer, max_size, std::move(handler));
                     });
                 case 0xA:   // pong
-                    LOG_LEVEL(2, "received pong frame");
+                    LOG_TRACE("received pong frame");
                     // clear pending ping, so nex timeout can issue a new ping instead of expire
                     pending_ping_ = false;
                     // do not compute pong as "data", so ping starts again next timer iteration
@@ -237,7 +237,7 @@ namespace thinger::asio{
                 // finished reading the message! check source opcode
                 switch(current_opcode_){
                     case 0x1:     // text frame
-                        LOG_LEVEL(2, "received text frame");
+                        LOG_TRACE("received text frame");
                         new_message_ = true;
                         if(utf8_naive(source_buffer_, current_size_)==0){
                             return handler(boost::system::error_code{}, current_size_);
@@ -247,7 +247,7 @@ namespace thinger::asio{
                             return handler(boost::asio::error::invalid_argument, 0);
                         }
                     case 0x2:     // binary frame
-                        LOG_LEVEL(2, "received binary frame");
+                        LOG_TRACE("received binary frame");
                         new_message_ = true;
                         return handler(boost::system::error_code{}, current_size_);
                     default:    // future control frames
@@ -273,10 +273,10 @@ namespace thinger::asio{
             // used for potential text and binary fragmented messages
             switch(opcode){
                 case 0x8:     // connection close
-                    LOG_LEVEL(2, "received close frame");
+                    LOG_TRACE("received close frame");
                     close_received_ = true;
                     if(close_sent_){
-                        LOG_LEVEL(2, "close already sent, stopping client");
+                        LOG_TRACE("close already sent, stopping client");
                         // notify handler that we will not read anything else
                         ec = boost::asio::error::connection_aborted;
                         return 0;
@@ -289,13 +289,13 @@ namespace thinger::asio{
                         return 0;
                     }
                 case 0x9:     // ping
-                    LOG_LEVEL(2, "received ping frame");
+                    LOG_TRACE("received ping frame");
                     send_pong(buffer, size, [](const boost::system::error_code& ec){
 
                     });
                     return read(buffer, max_size, ec);
                 case 0xA:   // pong
-                    LOG_LEVEL(2, "received pong frame");
+                    LOG_TRACE("received pong frame");
                     // clear pending ping, so nex timeout can issue a new ping instead of expire
                     pending_ping_ = false;
                     // do not compute pong as "data", so ping starts again next timer iteration
@@ -334,7 +334,7 @@ namespace thinger::asio{
                 // finished reading the message! check source opcode
                 switch(current_opcode_){
                     case 0x1:     // text frame
-                        LOG_LEVEL(2, "received text frame");
+                        LOG_TRACE("received text frame");
                         new_message_ = true;
                         if(utf8_naive(source_buffer_, current_size_)==0){
                             ec = boost::system::error_code{};
@@ -346,7 +346,7 @@ namespace thinger::asio{
                             return 0;
                         }
                     case 0x2:     // binary frame
-                        LOG_LEVEL(2, "received binary frame");
+                        LOG_TRACE("received binary frame");
                         new_message_ = true;
                         ec = boost::system::error_code{};
                         return current_size_;
@@ -369,7 +369,7 @@ namespace thinger::asio{
             ec_size_handler handler)
     {
         if(!masked){
-            LOG_LEVEL(3, "reading %zu bytes of unmasked content", size);
+            LOG_TRACE("reading %zu bytes of unmasked content", size);
             socket_->async_read(buffer, size, [this, opcode, fin, buffer, size, max_size, handler=std::move(handler)](const boost::system::error_code& e, std::size_t bytes_transferred){
                 if(e){
                     //LOG_ERROR("error while reading unmasked content: %s", e.message().c_str());
@@ -378,22 +378,22 @@ namespace thinger::asio{
                 handle_payload(opcode, fin, buffer, size, max_size, std::move(handler));
             });
         }else{
-            LOG_LEVEL(3, "reading mask: %u", MASK_SIZE_BYTES);
+            LOG_TRACE("reading mask: %u", MASK_SIZE_BYTES);
             socket_->async_read(buffer_, MASK_SIZE_BYTES, [this, opcode, fin, buffer, size, max_size, handler=std::move(handler)](const boost::system::error_code& e, std::size_t bytes_transferred){
                 if(e){
                     //LOG_ERROR("error while reading mask: %s", e.message().c_str());
                     return handler(e, 0);
                 }
-                LOG_LEVEL(3, "mask read: %zu bytes", bytes_transferred);
+                LOG_TRACE("mask read: %zu bytes", bytes_transferred);
 
-                LOG_LEVEL(3, "reading payload: %zu bytes", size);
+                LOG_TRACE("reading payload: %zu bytes", size);
                 socket_->async_read(buffer, size, [this, opcode, fin, buffer, size, max_size, handler=std::move(handler)](const boost::system::error_code& e, std::size_t bytes_transferred){
                     if(e){
                         //LOG_ERROR("error while reading payload: %s", e.message().c_str());
                         return handler(e, 0);
                     }
 
-                    LOG_LEVEL(3, "payload read: %zu bytes", bytes_transferred);
+                    LOG_TRACE("payload read: %zu bytes", bytes_transferred);
 
                     // decode payload with mask read
                     decode(buffer, size, buffer_);
@@ -414,16 +414,16 @@ namespace thinger::asio{
             boost::system::error_code& ec)
     {
         if(!masked){
-            LOG_LEVEL(3, "reading %zu bytes of unmasked content", size);
+            LOG_TRACE("reading %zu bytes of unmasked content", size);
             auto bytes_transferred = socket_->read(buffer, size, ec);
             if(ec) return 0;
             return handle_payload(opcode, fin, buffer, size, max_size, ec);
         }else{
-            LOG_LEVEL(3, "reading mask: %u", MASK_SIZE_BYTES);
+            LOG_TRACE("reading mask: %u", MASK_SIZE_BYTES);
             auto bytes_transferred = socket_->read(buffer_, MASK_SIZE_BYTES, ec);
             if(ec || bytes_transferred!=MASK_SIZE_BYTES) return 0;
-            LOG_LEVEL(3, "mask read: %zu bytes", bytes_transferred);
-            LOG_LEVEL(3, "reading payload: %zu bytes", size);
+            LOG_TRACE("mask read: %zu bytes", bytes_transferred);
+            LOG_TRACE("reading payload: %zu bytes", size);
             bytes_transferred = socket_->read(buffer, size, ec);
             if(ec || bytes_transferred!=size) return 0;
             // decode payload with mask read
@@ -433,7 +433,7 @@ namespace thinger::asio{
     }
 
     void websocket::handle_read(uint8_t buffer[], size_t max_size, ec_size_handler handler){
-        LOG_LEVEL(3, "waiting websocket frame header, socket: %d, connected: %d", socket_!=nullptr, socket_->is_open());
+        LOG_TRACE("waiting websocket frame header, socket: %d, connected: %d", socket_!=nullptr, socket_->is_open());
         socket_->async_read(buffer_, 2, [this, buffer, max_size, handler](const boost::system::error_code& e, std::size_t bytes_transferred){
 
             // if there is any error, then stop the connection
@@ -446,7 +446,7 @@ namespace thinger::asio{
                 return handler(e, 0);
             }
 
-            LOG_LEVEL(3, "socket read: %zu bytes", bytes_transferred);
+            LOG_TRACE("socket read: %zu bytes", bytes_transferred);
 
             data_received_ = true;
 
@@ -486,7 +486,7 @@ namespace thinger::asio{
             uint8_t data_size =  buffer_[1] & (uint8_t) ~(1 << 7);
             uint8_t masked = buffer_[1] & (uint8_t) 0b10000000;
 
-            LOG_LEVEL(3, "decode frame header. fin: %d, opcode: 0x%02X mask: %d data_size: %d", fin, opcode, masked, data_size);
+            LOG_TRACE("decode frame header. fin: %d, opcode: 0x%02X mask: %d data_size: %d", fin, opcode, masked, data_size);
 
             // ensure clients are masking the information
             if(!masked && server_role_){
@@ -528,11 +528,11 @@ namespace thinger::asio{
                 // or control messages
                 switch(opcode){
                     case 0x0:    // continuation frame (expected case)
-                        LOG_LEVEL(3, "received continuation frame, current size is: %zu", current_size_);
+                        LOG_TRACE("received continuation frame, current size is: %zu", current_size_);
                         break;
                     case 0x1:   // text frame
                     case 0x2:   // binary frame
-                        LOG_LEVEL(3, "received control frame in the middle of a message, current size is: %zu", current_size_);
+                        LOG_TRACE("received control frame in the middle of a message, current size is: %zu", current_size_);
                         LOG_ERROR("unexpected fragment type. expecting a continuation frame");
                         return handler(boost::asio::error::invalid_argument, 0);
                     case 0x8:   // connection close
@@ -595,9 +595,9 @@ namespace thinger::asio{
                     return handler(boost::asio::error::invalid_argument, 0);
                 }
 
-                LOG_LEVEL(3, "reading %d additional bytes for getting payload size", bytes_size);
+                LOG_TRACE("reading %d additional bytes for getting payload size", bytes_size);
                 socket_->async_read(buffer_, bytes_size, [this, opcode, fin, buffer, masked, max_size, handler = std::move(handler)](const boost::system::error_code& e, std::size_t bytes_transferred){
-                    LOG_LEVEL(3, "read payload size: %zu", bytes_transferred);
+                    LOG_TRACE("read payload size: %zu", bytes_transferred);
                     if(e){
                         /*
                         if(e!=boost::asio::error::operation_aborted){
@@ -606,7 +606,7 @@ namespace thinger::asio{
                         return handler(e, 0);
                     }
 
-                    LOG_LEVEL(3, "socket read: %zu bytes", bytes_transferred);
+                    LOG_TRACE("socket read: %zu bytes", bytes_transferred);
                     uint64_t size = 0;
                     for(auto i=0; i<bytes_transferred; ++i) size = (size << 8) + buffer_[i];
                     // ensure buffer capacity
@@ -636,7 +636,7 @@ namespace thinger::asio{
     void websocket::handle_write(uint8_t opcode, uint8_t buffer[], size_t size, ec_size_handler handler){
         // do not accept async write while the socket is writing, it will be queued once current writing is done
         if(writing_){
-            LOG_LEVEL(3, "adding write to queue. current queue size: %zu", pending_writes_.size());
+            LOG_TRACE("adding write to queue. current queue size: %zu", pending_writes_.size());
             pending_writes_.emplace(buffer, size, std::move(handler));
             return;
         }
@@ -699,13 +699,13 @@ namespace thinger::asio{
             header_size += MASK_SIZE_BYTES;
 
             // apply masking information
-            LOG_LEVEL(3, "applying mask on output message: 0x%02X%02X%02X%02X", rnd[0], rnd[1], rnd[2], rnd[3]);
+            LOG_TRACE("applying mask on output message: 0x%02X%02X%02X%02X", rnd[0], rnd[1], rnd[2], rnd[3]);
             for(auto i=0; i<size; ++i){
                 buffer[i] ^= rnd[i%MASK_SIZE_BYTES];
             }
         }
 
-        LOG_LEVEL(3, "sending websocket data. header: %u, payload: %zu, total: %zu", header_size, size, header_size+size);
+        LOG_TRACE("sending websocket data. header: %u, payload: %zu, total: %zu", header_size, size, header_size+size);
 
         // create buffer with header + payload
         std::vector<boost::asio::const_buffer> output_buffer;
@@ -724,7 +724,7 @@ namespace thinger::asio{
                 return handler(e, bytes_transferred);
             }
 
-            LOG_LEVEL(3, "bytes sent %zu", bytes_transferred);
+            LOG_TRACE("bytes sent %zu", bytes_transferred);
 
             // resolve current write callback
             handler(e, bytes_transferred-header_size);
@@ -825,7 +825,7 @@ namespace thinger::asio{
         if(!protocol.empty()){
             request->add_header("Sec-WebSocket-Protocol", protocol);
         }
-        http::send_request(io_service_, request,
+        http::send_request(io_context_, request,
            [this, handler=std::move(handler)](const boost::system::error_code& error,
                   std::shared_ptr<http::http_client_connection> connection,
                   std::shared_ptr<http::http_response> response){
@@ -871,7 +871,7 @@ namespace thinger::asio{
         auto bytes_transferred = socket_->read(buffer_, 2, ec);
         if(ec) return 0;
 
-        LOG_LEVEL(3, "socket read: %zu bytes", bytes_transferred);
+        LOG_TRACE("socket read: %zu bytes", bytes_transferred);
 
         data_received_ = true;
 
@@ -890,7 +890,7 @@ namespace thinger::asio{
         uint8_t data_size =  buffer_[1] & (uint8_t) ~(1 << 7);
         uint8_t masked = buffer_[1] & (uint8_t) 0b10000000;
 
-        LOG_LEVEL(3, "decode frame header. fin: %d, opcode: 0x%02X mask: %d data_size: %d", fin, opcode, masked, data_size);
+        LOG_TRACE("decode frame header. fin: %d, opcode: 0x%02X mask: %d data_size: %d", fin, opcode, masked, data_size);
 
         // ensure clients are masking the information
         if(!masked && server_role_){
@@ -936,11 +936,11 @@ namespace thinger::asio{
             // or control messages
             switch(opcode){
                 case 0x0:    // continuation frame (expected case)
-                    LOG_LEVEL(3, "received continuation frame, current size is: %zu", current_size_);
+                    LOG_TRACE("received continuation frame, current size is: %zu", current_size_);
                     break;
                 case 0x1:   // text frame
                 case 0x2:   // binary frame
-                    LOG_LEVEL(3, "received control frame in the middle of a message, current size is: %zu", current_size_);
+                    LOG_TRACE("received control frame in the middle of a message, current size is: %zu", current_size_);
                     LOG_ERROR("unexpected fragment type. expecting a continuation frame");
                     ec = boost::asio::error::invalid_argument;
                     return 0;
@@ -992,7 +992,7 @@ namespace thinger::asio{
             bytes_transferred = socket_->read(buffer_, bytes_size, ec);
             if(ec) return 0;
 
-            LOG_LEVEL(3, "socket read: %zu bytes", bytes_transferred);
+            LOG_TRACE("socket read: %zu bytes", bytes_transferred);
             uint64_t size = 0;
             for(auto i=0; i<bytes_transferred; ++i) size = (size << 8) + buffer_[i];
 
@@ -1055,13 +1055,13 @@ namespace thinger::asio{
             header_size += MASK_SIZE_BYTES;
 
             // apply masking information
-            LOG_LEVEL(3, "applying mask on output message: 0x%02X%02X%02X%02X", rnd[0], rnd[1], rnd[2], rnd[3]);
+            LOG_TRACE("applying mask on output message: 0x%02X%02X%02X%02X", rnd[0], rnd[1], rnd[2], rnd[3]);
             for(auto i=0; i<size; ++i){
                 buffer[i] ^= rnd[i%MASK_SIZE_BYTES];
             }
         }
 
-        LOG_LEVEL(3, "sending websocket data. header: %u, payload: %zu, total: %zu", header_size, size, header_size+size);
+        LOG_TRACE("sending websocket data. header: %u, payload: %zu, total: %zu", header_size, size, header_size+size);
         // write header
         socket_->write(output_, header_size, ec);
         // write actual payload

@@ -1,5 +1,6 @@
 #include "workers.hpp"
 #include <boost/bind/bind.hpp>
+#include <mutex>
 #include "../util/logger.hpp"
 
 namespace thinger::asio{
@@ -12,7 +13,7 @@ namespace thinger::asio{
 	using std::make_shared;
 
     workers::workers() :
-        signals_(io_service_),
+        signals_(io_context_),
         worker_threads_()
     {
 
@@ -24,7 +25,7 @@ namespace thinger::asio{
     }
 
     void workers::wait(const std::set<unsigned>& signals) {
-        LOG_LEVEL(1, "registering stop signals...");
+        LOG_DEBUG("registering stop signals...");
         for (auto signal: signals){
             signals_.add(signal);
         }
@@ -37,7 +38,7 @@ namespace thinger::asio{
             }
         });
 
-        io_service_.run();
+        io_context_.run();
     }
 
 
@@ -59,16 +60,16 @@ namespace thinger::asio{
         return running_;
     }
 
-    boost::asio::io_service& workers::get_isolated_io_service(std::string thread_name)
+    boost::asio::io_context& workers::get_isolated_io_context(std::string thread_name)
     {
         LOG_INFO("starting '%s' worker thread", thread_name.c_str());
         auto worker = std::make_unique<worker_thread>(std::move(thread_name));
-        auto& io_service = worker->get_io_service();
+        auto& io_context = worker->get_io_context();
         auto thread_id = worker->start();
         auto& worker_ref = *worker;
         job_threads_.emplace_back(std::move(worker));
         workers_threads_map_.emplace(thread_id, worker_ref);
-        return io_service;
+        return io_context;
     }
 
     bool workers::stop()
@@ -93,30 +94,30 @@ namespace thinger::asio{
         //worker_threads_.clear();
         //job_threads_.clear();
 
-        // stop io_service used in signals
-        LOG_INFO("stopping io_service");
-        io_service_.stop();
+        // stop io_context used in signals
+        LOG_INFO("stopping io_context");
+        io_context_.stop();
 
         LOG_INFO("all done!");
 
         return !running_;
     }
 
-	boost::asio::io_service& workers::get_next_io_service()
+	boost::asio::io_context& workers::get_next_io_context()
 	{
-        return worker_threads_[next_io_service_++%worker_threads_.size()]->get_io_service();
+        return worker_threads_[next_io_context_++%worker_threads_.size()]->get_io_context();
 	}
 
-	boost::asio::io_service& workers::get_thread_io_service()
+	boost::asio::io_context& workers::get_thread_io_context()
 	{
         std::scoped_lock<std::mutex> lock(mutex_);
         std::thread::id this_id = std::this_thread::get_id();
         auto it = workers_threads_map_.find(this_id);
         if(it==workers_threads_map_.end()){
             //LOG_F(ERROR, "trying to get the thread io service outside a worker thread");
-            return worker_threads_.begin()->get()->get_io_service();
+            return worker_threads_.begin()->get()->get_io_context();
         }else{
-            return it->second.get().get_io_service();
+            return it->second.get().get_io_context();
         }
 	}
 

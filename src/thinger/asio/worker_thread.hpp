@@ -12,7 +12,7 @@ namespace thinger::asio{
 
         void set_thread_name(std::string worker_name);
 
-        boost::asio::io_service& get_io_service();
+        boost::asio::io_context& get_io_context();
 
         std::thread::id start();
         bool stop();

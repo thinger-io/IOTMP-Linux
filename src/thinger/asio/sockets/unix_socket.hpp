@@ -11,7 +11,7 @@ namespace thinger::asio {
         boost::asio::local::stream_protocol::socket socket_;
 
     public:
-        unix_socket(const std::string &context, boost::asio::io_service &io_service) : socket(context, io_service), socket_(io_service){
+        unix_socket(const std::string &context, boost::asio::io_context &io_context) : socket(context, io_context), socket_(io_context){
 
         }
 
@@ -46,7 +46,7 @@ namespace thinger::asio {
         void connect(const std::string &path, std::chrono::seconds expire_seconds, ec_handler handler){
             close();
 
-            std::shared_ptr<boost::asio::deadline_timer> timer = std::make_shared<boost::asio::deadline_timer>(get_io_service());
+            std::shared_ptr<boost::asio::deadline_timer> timer = std::make_shared<boost::asio::deadline_timer>(get_io_context());
             timer->expires_from_now(boost::posix_time::seconds(expire_seconds.count()));
             timer->async_wait([this](boost::system::error_code ec) {
                 if(!ec) {

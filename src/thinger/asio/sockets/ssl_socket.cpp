@@ -2,8 +2,8 @@
 
 namespace thinger::asio{
 
-    ssl_socket::ssl_socket(const std::string &context, boost::asio::io_service& io_service, std::shared_ptr<boost::asio::ssl::context> ssl_context) :
-        tcp_socket(context, io_service),
+    ssl_socket::ssl_socket(const std::string &context, boost::asio::io_context& io_context, std::shared_ptr<boost::asio::ssl::context> ssl_context) :
+        tcp_socket(context, io_context),
         ssl_stream_(socket_, *ssl_context),
         ssl_context_(ssl_context)
     {
@@ -33,7 +33,7 @@ namespace thinger::asio{
     }
 
     ssl_socket::~ssl_socket() {
-        LOG_LEVEL(3, "releasing ssl connection");
+        LOG_TRACE("releasing ssl connection");
     }
 
     bool ssl_socket::requires_handshake() const{

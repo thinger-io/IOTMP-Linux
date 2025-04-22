@@ -168,10 +168,10 @@ namespace thinger::http{
 
     void http_headers::log(const char* scope, int level) const{
         for(const auto& t: headers_){
-            LOG_LEVEL(level, "%s: %s", t.first.c_str(), t.second.c_str());
+            LOG_DEBUG("%s: %s", t.first.c_str(), t.second.c_str());
         }
         for(const auto& t: proxy_headers_){
-            LOG_LEVEL(level, "(PROXY REPLACE) %s: %s", t.first.c_str(), t.second.c_str());
+            LOG_DEBUG("(PROXY REPLACE) %s: %s", t.first.c_str(), t.second.c_str());
         }
     }
 

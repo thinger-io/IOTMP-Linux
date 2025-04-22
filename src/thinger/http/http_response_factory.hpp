@@ -2,6 +2,7 @@
 #define THINGER_HTTP_RESPONSE_FACTORY_HPP
 
 #include <memory>
+#include <functional>
 #include <boost/logic/tribool.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <boost/lexical_cast.hpp>

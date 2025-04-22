@@ -9,87 +9,76 @@ namespace thinger::asio {
 		    socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
 	    }
         socket_.close(ec);
-        LOG_LEVEL(3, "closing tcp socket result: %s", ec.message().c_str());
+        LOG_TRACE("closing tcp socket result: %s", ec.message().c_str());
     }
 
-    tcp_socket::tcp_socket(const std::string& context, boost::asio::io_service& io_service) :
-            socket(context, io_service), socket_(io_service) {
+    tcp_socket::tcp_socket(const std::string& context, boost::asio::io_context& io_context) :
+            socket(context, io_context), socket_(io_context) {
 
     }
 
     tcp_socket::tcp_socket(const std::string& context, const std::shared_ptr<tcp_socket>& tcp_socket) :
-            socket(context, tcp_socket->get_io_service()), socket_(std::move(tcp_socket->get_socket())) {
+            socket(context, tcp_socket->get_io_context()), socket_(std::move(tcp_socket->get_socket())) {
 
     }
 
     tcp_socket::~tcp_socket(){
-        LOG_LEVEL(3, "releasing tcp connection");
+        LOG_TRACE("releasing tcp connection");
         close();
     }
 
     void tcp_socket::connect(const std::string& host, const std::string& port, std::chrono::seconds expire_seconds,
                              ec_handler handler){
+            close();
 
-        // resolve socket host
-        std::shared_ptr<boost::asio::ip::tcp::resolver> resolver = std::make_shared<boost::asio::ip::tcp::resolver>(get_io_service());
-        boost::asio::ip::tcp::resolver::query query(host, port);
+            // resolve socket host
+            std::shared_ptr<boost::asio::ip::tcp::resolver> resolver = std::make_shared<boost::asio::ip::tcp::resolver>(get_io_context());
 
-        resolver->async_resolve(query,
-                                [this, host, expire_seconds, handler=std::move(handler), resolver](const boost::system::error_code &ec, boost::asio::ip::tcp::resolver::iterator it) {
+            resolver->async_resolve(host, port, [this, host, expire_seconds, handler, resolver](
+                const boost::system::error_code &ec,
+                const boost::asio::ip::tcp::resolver::results_type& results) {
 
-                                    // any error during resolve
-                                    if (ec) {
-                                        return handler(ec);
-                                    }
+                if (ec) {
+                    return handler(ec);
+                }
 
-                                    // reset connection timeout
-                                    time_out_ = false;
+                auto timer = std::make_shared<boost::asio::deadline_timer>(get_io_context());
+                timer->expires_from_now(boost::posix_time::seconds(expire_seconds.count()));
+                timer->async_wait([this](boost::system::error_code ec) {
+                    if (!ec) {
+                        socket_.cancel();
+                    }
+                });
 
-                                    // initialize a connection timeout
-                                    std::shared_ptr<boost::asio::deadline_timer> timer = std::make_shared<boost::asio::deadline_timer>(get_io_service());
-                                    timer->expires_from_now(boost::posix_time::seconds(expire_seconds.count()));
-                                    timer->async_wait([this](boost::system::error_code ec) {
-                                        // if handler is called without a cancelled reason (should happen when connect is succeed)
-                                        if(ec!=boost::asio::error::operation_aborted){
-                                            LOG_LEVEL(1, "connection timed out!");
-                                            time_out_ = true;
-                                            boost::system::error_code ecc;
-                                            socket_.cancel(ecc);
-                                        }
-                                    });
+                // connect socket
+                boost::asio::async_connect(get_socket(), results.begin(), results.end(), [this, host, timer, handler](
+                    const boost::system::error_code &ec,
+                    const boost::asio::ip::tcp::resolver::results_type::iterator& it) {
 
-                                    // connect socket
-                                    boost::asio::async_connect(get_socket(), it,
-                                                               [this, host, timer, handler=std::move(handler)](const boost::system::error_code &ec, boost::asio::ip::tcp::resolver::iterator it) {
+                    // cancel timer
+                    timer->cancel();
 
-                                                                   // check any errors to return
-                                                                   if (ec) {
-                                                                       auto ecc = time_out_ ? boost::asio::error::timed_out : ec;
-                                                                       LOG_LEVEL(1, "connection to host failed, reason: %s", ecc.message().c_str());
-                                                                       return handler(ecc);
-                                                                   }
+                    // check any errors to return
+                    if (ec) {
+                        return handler(ec);
+                    }
 
-                                                                   // cancel timer
-                                                                   timer->cancel();
+                    // handle handshake
+                    if (requires_handshake()) {
+                        run_handshake([this, handler](const boost::system::error_code &ec) {
+                            if (ec) {
+                            	LOG_ERROR("error while running SSL/TLS handshake: %s", ec.message().c_str());
+                            }
+                            handler(ec);
+                        }, host);
+                    } else {
+                        // just provide the provided ec (no error)
+                        handler(ec);
+                    }
+                });
+            });
+        }
 
-                                                                   // enable tcp no delay
-                                                                   enable_tcp_no_delay();
-
-                                                                   // handle handshake
-                                                                   if (requires_handshake()) {
-                                                                       run_handshake([this, handler=std::move(handler)](const boost::system::error_code &ec) {
-                                                                           if (ec) {
-                                                                               LOG_ERROR("error while running SSL/TLS handshake: %s", ec.message().c_str());
-                                                                           }
-                                                                           handler(ec);
-                                                                       }, host);
-                                                                   } else {
-                                                                       // just provide the provided ec (no error)
-                                                                       handler(ec);
-                                                                   }
-                                                               });
-                                });
-    }
 
     boost::asio::ip::tcp::socket& tcp_socket::get_socket(){
         return socket_;

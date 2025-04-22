@@ -13,9 +13,9 @@ namespace thinger::iotmp{
         if(secure){
             auto ssl_context = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23_client);
             ssl_context->set_default_verify_paths();
-            socket_ = std::make_shared<thinger::asio::ssl_socket>("proxy", client.get_io_service(), ssl_context);
+            socket_ = std::make_shared<thinger::asio::ssl_socket>("proxy", client.get_io_context(), ssl_context);
         }else{
-            socket_ = std::make_shared<thinger::asio::tcp_socket>("proxy", client.get_io_service());
+            socket_ = std::make_shared<thinger::asio::tcp_socket>("proxy", client.get_io_context());
         }
     }
 
