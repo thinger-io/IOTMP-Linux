@@ -68,7 +68,7 @@ else()
     set(Boost_USE_STATIC_LIBS        ON)
 endif()
 
-find_package(Boost REQUIRED COMPONENTS system thread regex program_options date_time filesystem)
+find_package(Boost REQUIRED COMPONENTS system thread regex program_options date_time filesystem process)
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     list(APPEND ADDITIONAL_LIBS ${Boost_LIBRARIES})

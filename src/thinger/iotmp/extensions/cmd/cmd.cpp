@@ -1,7 +1,8 @@
 #include "cmd.hpp"
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/buffer.hpp>
-#include <boost/process.hpp>
+#include <boost/process/v2/process.hpp>
+#include <boost/process/v2/stdio.hpp>
 
 namespace thinger::iotmp{
 
@@ -54,57 +55,82 @@ namespace thinger::iotmp{
         LOG_INFO("$ %s", command.c_str());
 
         try{
-            boost::asio::io_context svc;
-            namespace bp = boost::process;
+            boost::asio::io_context ioc;
+            namespace bp2 = boost::process::v2;
 
-            bp::async_pipe std_out(svc);
-            bp::async_pipe std_err(svc);
+            // readable pipes for stdout and stderr
+            boost::asio::readable_pipe stdout_pipe(ioc);
+            boost::asio::readable_pipe stderr_pipe(ioc);
 
-            std::vector<std::string> args = {"-c", command};
-            bp::child c(bp::search_path("sh"), bp::args(args), bp::std_out > std_out, bp::std_err > std_err);
-
-            // std cout pipe
-            std::vector<char> out;
-            out.resize(1024);
-            std::function<void(const boost::system::error_code & ec, std::size_t n)> out_read = [&](const boost::system::error_code &ec, std::size_t size){
-                if(size){
-                    try{
-                        pout = {&out[0], size};
-                    }catch(const std::exception & e) {
-                        LOG_ERROR("error while calling result callback: %s", e.what());
-                    }catch(...){
-                        LOG_ERROR("error while calling result callback");
-                    }
+            // create the process with the command
+            bp2::process proc(
+                ioc.get_executor(),
+                "/bin/sh",
+                {"-c", command},
+                bp2::process_stdio{
+                    nullptr,        // stdin como null
+                    stdout_pipe,    // stdout
+                    stderr_pipe     // stderr
                 }
-                if(!ec && c.running()){
-                    std_out.async_read_some(boost::asio::buffer(out, 1024), out_read);
-                }
-            };
-            std_out.async_read_some(boost::asio::buffer(out, 1024), out_read);
+            );
 
-            // std err pipe
-            std::vector<char> err;
-            err.resize(1024);
-            std::function<void(const boost::system::error_code & ec, std::size_t n)> error_read = [&](const boost::system::error_code &ec, std::size_t size){
-                if(size){
-                    try{
-                        perr = {&err[0], size};
-                        LOG_ERROR("%s", perr.c_str());
-                    }catch(const std::exception & e) {
-                        LOG_ERROR("error while calling result callback: %s", e.what());
-                    }catch(...){
-                        LOG_ERROR("error while calling result callback");
-                    }
-                }
-                if(!ec && c.running()){
-                    std_err.async_read_some(boost::asio::buffer(err, 1024), error_read);
+            // buffer for stdout
+            std::string stdout_data;
+            boost::asio::dynamic_string_buffer stdout_buffer(stdout_data, 1024);
+
+            std::function<void(boost::system::error_code, std::size_t)> on_stdout;
+            on_stdout = [&](boost::system::error_code ec, std::size_t size) {
+                if (!ec) {
+                    pout.append(stdout_data.data(), size);
+                    stdout_data.erase(0, size);
+
+                    // Continuar leyendo
+                    boost::asio::async_read(stdout_pipe, stdout_buffer,
+                        boost::asio::transfer_at_least(1), on_stdout);
                 }
             };
-            std_err.async_read_some(boost::asio::buffer(err, 1024), error_read);
 
-            svc.run();
-            c.wait();
-            return c.exit_code();
+            // buffer for stderr
+            std::string stderr_data;
+            boost::asio::dynamic_string_buffer stderr_buffer(stderr_data, 1024);
+
+            std::function<void(boost::system::error_code, std::size_t)> on_stderr;
+            on_stderr = [&](boost::system::error_code ec, std::size_t size) {
+                if (!ec) {
+                    perr.append(stderr_data.data(), size);
+                    LOG_ERROR("%.*s", (int)size, stderr_data.data());
+                    stderr_data.erase(0, size);
+
+                    // Continuar leyendo
+                    boost::asio::async_read(stderr_pipe, stderr_buffer,
+                        boost::asio::transfer_at_least(1), on_stderr);
+                }
+            };
+
+            // init the async read operations on stdout and stderr
+            boost::asio::async_read(stdout_pipe, stdout_buffer,
+                boost::asio::transfer_at_least(1), on_stdout);
+            boost::asio::async_read(stderr_pipe, stderr_buffer,
+                boost::asio::transfer_at_least(1), on_stderr);
+
+            // init exit code
+            int exit_code = -1;
+
+            // wait until the process finishes
+            proc.async_wait([&](boost::system::error_code ec, int native_exit_code) {
+                if (!ec) {
+                    // keep the exit code
+                    exit_code = bp2::evaluate_exit_code(native_exit_code);
+                }
+                // stop the io_context
+                ioc.stop();
+            });
+
+            // run the io_context to process the async operations
+            ioc.run();
+
+            return exit_code;
+
         }catch(const std::exception & e) {
             LOG_ERROR("error while executing command: %s", e.what());
             return EXIT_FAILURE;
@@ -112,6 +138,5 @@ namespace thinger::iotmp{
             return EXIT_FAILURE;
         }
     }
-
 
 }
