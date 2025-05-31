@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.11...3.21)
+cmake_minimum_required(VERSION 3.11)
 project(thinger_iotmp)
 
-if (${CMAKE_VERSION} VERSION_GREATER "3.24")
-  cmake_policy(SET CMP0135 NEW)
+if(CMAKE_VERSION VERSION_GREATER "3.24")
+    cmake_policy(SET CMP0135 NEW)
 endif()
 
 # set package version
@@ -16,7 +16,6 @@ add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
 # Check if thinger is being built by subproject of standalone
-#set(THINGER_MASTER_PROJECT OFF)
 if(NOT DEFINED THINGER_MASTER_PROJECT)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(THINGER_MASTER_PROJECT ON)
@@ -70,12 +69,10 @@ endif()
 # Add 'util' lib for supporting forkpty
 list(APPEND ADDITIONAL_LIBS util)
 
-# Add atomic for 32 bit arm
-if("${ARCH}" MATCHES "^armv7m" OR
-   "${ARCH}" MATCHES "^mips" OR
-   "${ARCH}" MATCHES "^x32")
-  message(STATUS "Linking against libatomic")
-  list(APPEND ADDITIONAL_LIBS atomic)
+# Add atomic for architectures that need it
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|armv7|aarch32|mips|i.86).*")
+    message(STATUS "Linking against libatomic for ${CMAKE_SYSTEM_PROCESSOR}")
+    list(APPEND ADDITIONAL_LIBS atomic)
 endif()
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
@@ -195,6 +192,6 @@ else()
 endif()
 
 if(BIN_EXTENSION)
-  set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}.${ARCH}")
-  message(STATUS "Binary name is ${PROJECT_NAME}.${ARCH}")
+    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}.${CMAKE_SYSTEM_PROCESSOR}")
+    message(STATUS "Binary name is ${PROJECT_NAME}.${CMAKE_SYSTEM_PROCESSOR}")
 endif()
