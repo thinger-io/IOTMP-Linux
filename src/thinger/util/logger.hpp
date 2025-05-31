@@ -6,7 +6,7 @@
 
 # if __has_include(<spdlog/spdlog.h>)
     #include <spdlog/spdlog.h>
-    #include <fmt/printf.h>
+    #include <spdlog/fmt/bundled/printf.h>
     #include <string>
     #include <memory>
     #include <stdexcept>
