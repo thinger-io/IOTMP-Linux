@@ -33,8 +33,6 @@ OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 OPTION(STATIC "Enable static linking" OFF)
 OPTION(BIN_EXTENSION "Set binary file extension" OFF)
 
-SET(ARCH "x86_64" CACHE STRING "Compiler architecure")
-
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
     include_directories(${OPENSSL_INCLUDE_DIR})
