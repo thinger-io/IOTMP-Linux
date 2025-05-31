@@ -15,8 +15,6 @@ add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
 add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
-
 # Check if thinger is being built by subproject of standalone
 #set(THINGER_MASTER_PROJECT OFF)
 if(NOT DEFINED THINGER_MASTER_PROJECT)
