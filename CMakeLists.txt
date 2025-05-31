@@ -40,14 +40,6 @@ OPTION(BIN_EXTENSION "Set binary file extension" OFF)
 
 SET(ARCH "x86_64" CACHE STRING "Compiler architecure")
 
-if (APPLE)
-    # This is a bug in CMake that causes it to prefer the system version over
-    # the one in the specified ROOT folder.
-    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /opt/homebrew/Cellar/openssl@3/3.3.0/)
-    set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib CACHE FILEPATH "" FORCE)
-    set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libssl.dylib CACHE FILEPATH "" FORCE)
-endif()
-
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
     include_directories(${OPENSSL_INCLUDE_DIR})
