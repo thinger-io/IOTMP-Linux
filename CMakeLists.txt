@@ -67,12 +67,6 @@ endif()
 # Add 'util' lib for supporting forkpty
 list(APPEND ADDITIONAL_LIBS util)
 
-# Add atomic for architectures that need it
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|armv7|aarch32|mips|i.86).*")
-    message(STATUS "Linking against libatomic for ${CMAKE_SYSTEM_PROCESSOR}")
-    list(APPEND ADDITIONAL_LIBS atomic)
-endif()
-
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
 add_definitions( -DTHINGER_KEEP_ALIVE_SECONDS=60)
