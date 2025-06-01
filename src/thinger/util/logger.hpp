@@ -18,6 +18,7 @@
     #define LOG_WARNING(...)                SPDLOG_WARN(fmt::sprintf(__VA_ARGS__))
     #define LOG_DEBUG(...)                  SPDLOG_DEBUG(fmt::sprintf(__VA_ARGS__))
     #define LOG_TRACE(...)                  SPDLOG_TRACE(fmt::sprintf(__VA_ARGS__))
+    #define LOG_LEVEL(LEVEL, ...)           SPDLOG_LOGGER_CALL(spdlog::default_logger_raw(), static_cast<spdlog::level::level_enum>(LEVEL), fmt::sprintf(__VA_ARGS__))
 
     #define THINGER_LOG(...)                SPDLOG_INFO(fmt::sprintf(__VA_ARGS__))
     #define THINGER_LOG_TAG(TAG, ...)       SPDLOG_INFO("[{}] {}", TAG, fmt::sprintf(__VA_ARGS__))
