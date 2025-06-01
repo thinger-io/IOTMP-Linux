@@ -225,7 +225,7 @@ namespace protoson
 
         static bool to_json(pson& pson, nlohmann::json& json){
             try{
-                nlohmann::to_json(pson, json);
+                protoson::to_json(pson, json);
             }catch(...){
                 return false;
             }
