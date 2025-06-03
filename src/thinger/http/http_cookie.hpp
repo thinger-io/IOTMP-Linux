@@ -2,6 +2,7 @@
 #define THINGER_HTTP_COOKIE_HPP
 
 #include <string>
+#include <cstdint>
 
 namespace thinger::http{
 
