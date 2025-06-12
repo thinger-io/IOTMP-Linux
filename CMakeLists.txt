@@ -32,6 +32,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 OPTION(STATIC "Enable static linking" OFF)
 OPTION(BIN_EXTENSION "Set binary file extension" OFF)
+OPTION(ENABLE_SANITIZERS "Enable address sanitizer for debugging (macOS only)" OFF)
 
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
@@ -173,11 +174,15 @@ else()
   add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
   if(APPLE)
-    # use this options to test with sanitizer
     add_definitions(-DBOOST_LOG_DYN_LINK=1)
-    list(APPEND TEST_OPTIONS -fsanitize=address -fno-omit-frame-pointer -fsanitize-recover=address -g)
-    target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:DEBUG>:${TEST_OPTIONS}>")
-    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+    
+    # Address sanitizer options (optional, disabled by default)
+    if(ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+      message(STATUS "Address sanitizer enabled for debugging")
+      list(APPEND TEST_OPTIONS -fsanitize=address -fno-omit-frame-pointer -fsanitize-recover=address -g)
+      target_compile_options(${PROJECT_NAME} PRIVATE ${TEST_OPTIONS})
+      target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
+    endif()
   endif()
 
   target_link_libraries(${PROJECT_NAME} ${ADDITIONAL_LIBS})
