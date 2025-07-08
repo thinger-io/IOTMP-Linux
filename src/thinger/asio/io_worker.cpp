@@ -10,7 +10,7 @@ namespace thinger::asio{
     }
 
     io_worker::~io_worker() {
-        LOG_TRACE("io worker released");
+        //LOG_TRACE("io worker released");
     }
 
     void io_worker::start() {

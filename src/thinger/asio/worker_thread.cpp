@@ -54,7 +54,7 @@ namespace thinger::asio{
     }
 
     worker_thread::~worker_thread(){
-        LOG_DEBUG("worker thread deleted: %s", worker_name_.c_str());
+        //LOG_DEBUG("worker thread deleted: %s", worker_name_.c_str());
     }
 
     void worker_thread::set_thread_name(std::string worker_name){
