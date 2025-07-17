@@ -15,12 +15,13 @@ add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
 add_definitions(-DVERSION_MINOR=${VERSION_MINOR})
 add_definitions(-DVERSION_PATCH=${VERSION_PATCH})
 
-# Check if thinger is being built by subproject of standalone
-if(NOT DEFINED THINGER_MASTER_PROJECT)
+# Check if project is being built standalone or as subproject
+# PROJECT_IS_TOP_LEVEL is available in CMake 3.21+
+if(CMAKE_VERSION VERSION_LESS 3.21)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    set(THINGER_MASTER_PROJECT ON)
+    set(PROJECT_IS_TOP_LEVEL ON)
   else()
-    set(THINGER_MASTER_PROJECT OFF)
+    set(PROJECT_IS_TOP_LEVEL OFF)
   endif()
 endif()
 
@@ -31,44 +32,23 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # configure Thinger.io parameters
 OPTION(STATIC "Enable static linking" OFF)
 
+# OpenSSL
+if(STATIC)
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+endif()
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
-    include_directories(${OPENSSL_INCLUDE_DIR})
-    list(APPEND ADDITIONAL_LIBS OpenSSL::SSL)
-    list(APPEND ADDITIONAL_LIBS OpenSSL::Crypto)
-    if(STATIC)
-      # OpenSSL
-      set(OPENSSL_USE_STATIC_LIBS TRUE)
-    endif()
-    message(STATUS "OpenSSL Version: ${OPENSSL_VERSION} ${OPENSSL_INCLUDE_DIR} ${OPENSSL_SSL_LIBRARIES} ${OPENSSL_CRYPTO_LIBRARIES}")
+    message(STATUS "OpenSSL Version: ${OPENSSL_VERSION}")
 endif()
 
 # Boost
-set(Boost_USE_MULTITHREADED      ON)
+set(Boost_USE_MULTITHREADED ON)
 if(STATIC)
     set(Boost_USE_STATIC_LIBS ON)
 else()
     set(Boost_USE_STATIC_LIBS OFF)
 endif()
-find_package(Boost REQUIRED COMPONENTS program_options)
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
-    list(APPEND ADDITIONAL_LIBS ${Boost_LIBRARIES})
-endif()
-
 find_package(Boost REQUIRED COMPONENTS system thread regex program_options date_time filesystem process)
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
-    list(APPEND ADDITIONAL_LIBS ${Boost_LIBRARIES})
-endif()
-
-# required for GCC < 9.0
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    list(APPEND ADDITIONAL_LIBS "stdc++fs")
-endif()
-
-# Add 'util' lib for supporting forkpty
-list(APPEND ADDITIONAL_LIBS util)
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
@@ -92,11 +72,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
-list(APPEND ADDITIONAL_LIBS spdlog::spdlog)
 
-if (NOT THINGER_MASTER_PROJECT)
-
-  message(STATUS "Generating install of ${PROJECT_NAME}")
+if (NOT PROJECT_IS_TOP_LEVEL)
 
   # Source files
   file(GLOB_RECURSE SOURCE_FILES
@@ -107,39 +84,66 @@ if (NOT THINGER_MASTER_PROJECT)
     "src/thinger/*.c"
   )
 
-  add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
+  # Create library (type determined by BUILD_SHARED_LIBS or explicit SHARED/STATIC)
+  add_library(${PROJECT_NAME} ${SOURCE_FILES})
+  
+  # Set default to static if not specified
+  if(NOT DEFINED BUILD_SHARED_LIBS)
+    set_property(TARGET ${PROJECT_NAME} PROPERTY TYPE STATIC_LIBRARY)
+    message(STATUS "Building ${PROJECT_NAME} as static library")
+  else()
+    message(STATUS "Building ${PROJECT_NAME} as shared library")
+  endif()
 
-  target_compile_definitions(${PROJECT_NAME} PUBLIC -DTHINGER_SERVER="iot.thinger.io")
-  target_compile_definitions(${PROJECT_NAME} PUBLIC -DTHINGER_ENABLE_STREAM_LISTENER)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC 
+      THINGER_SERVER="iot.thinger.io"
+      THINGER_ENABLE_STREAM_LISTENER
+  )
 
   add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-  # json
-  if ( TARGET nlohmann_json )
-      message(STATUS "Adding json to thinger library")
-      list(APPEND ADDITIONAL_LIBS nlohmann_json::nlohmann_json)
-  endif()
+  # Link dependencies with modern CMake
+  target_link_libraries(${PROJECT_NAME} PUBLIC
+      spdlog::spdlog
+      OpenSSL::SSL
+      OpenSSL::Crypto
+      Boost::system
+      Boost::thread
+      Boost::regex
+      Boost::program_options
+      Boost::date_time
+      Boost::filesystem
+      Boost::process
+      $<$<TARGET_EXISTS:nlohmann_json::nlohmann_json>:nlohmann_json::nlohmann_json>
+      $<$<TARGET_EXISTS:httplib::httplib>:httplib::httplib>
+      $<$<PLATFORM_ID:Linux>:util>
+      $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
+  )
 
-  # httplib
-  if( TARGET httplib )
-      #target_link_libraries(${PROJECT} PUBLIC httplib)
-      if ( TARGET nlohmann_json )
-        message(STATUS "Adding httplib to thinger library")
-        list(APPEND ADDITIONAL_LIBS httplib::httplib)
-      endif()
-  endif()
-  target_link_libraries(${PROJECT_NAME} ${ADDITIONAL_LIBS})
-
-  set(THINGER_INCLUDES_LEVEL "")
-  target_include_directories(${PROJECT_NAME} ${THINGER_INCLUDES_LEVEL} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
-                                      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-
-  export(TARGETS ${PROJECT_NAME} FILE thingerConfigTargets.cmake)
-  export(PACKAGE ${PROJECT_NAME})
+  target_include_directories(${PROJECT_NAME} PUBLIC 
+      "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src>"
+      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+  )
 
 else()
 
   message(STATUS "Generating binary of ${PROJECT_NAME}")
+  
+  # json
+  FetchContent_Declare(
+    json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.12.0
+  )
+  FetchContent_MakeAvailable(json)
+  
+  # httplib
+  FetchContent_Declare(
+          httplib
+          GIT_REPOSITORY  https://github.com/yhirose/cpp-httplib.git
+          GIT_TAG         v0.16.0
+  )
+  FetchContent_MakeAvailable(httplib)
 
   # Source files
   file(GLOB_RECURSE SOURCE_FILES
@@ -150,6 +154,12 @@ else()
     "src/*.c"
   )
 
+  # Platform-specific configurations
+  if(NOT APPLE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-psabi")
+  endif()
+
+  # Static linking configuration
   if(STATIC)
     set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
     set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
@@ -157,33 +167,30 @@ else()
     set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
     if(APPLE)
-      # macOS doesn't support full static linking, but we can statically link libstdc++ and other libs
+      # macOS doesn't support full static linking, but we can statically link libstdc++
       SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -pthread")
     else()
-      # generate a static binary for Linux
+      # Linux: generate a fully static binary
       SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static -pthread")
     endif()
   endif()
 
-  if(APPLE)
-
-  else()
-    # generate a static binary
-    #SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static -pthread")
-
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-psabi")
-
-    # strip binary
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
-  endif()
-
   add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
-  target_link_libraries(${PROJECT_NAME} ${ADDITIONAL_LIBS})
-endif()
-
-if(BIN_EXTENSION)
-    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}.${CMAKE_SYSTEM_PROCESSOR}")
-    message(STATUS "Binary name is ${PROJECT_NAME}.${CMAKE_SYSTEM_PROCESSOR}")
+  target_link_libraries(${PROJECT_NAME} PRIVATE
+      spdlog::spdlog
+      nlohmann_json::nlohmann_json
+      httplib::httplib
+      OpenSSL::SSL
+      OpenSSL::Crypto
+      Boost::system
+      Boost::thread
+      Boost::regex
+      Boost::program_options
+      Boost::date_time
+      Boost::filesystem
+      Boost::process
+      $<$<PLATFORM_ID:Linux>:util>
+      $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
+  )
 endif()
