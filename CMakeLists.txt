@@ -29,10 +29,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # configure Thinger.io parameters
-OPTION(ASIO_CLIENT "Enable ASIO CLIENT" ON)
 OPTION(STATIC "Enable static linking" OFF)
-OPTION(BIN_EXTENSION "Set binary file extension" OFF)
-OPTION(ENABLE_SANITIZERS "Enable address sanitizer for debugging (macOS only)" OFF)
 
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
@@ -46,16 +43,17 @@ if(OPENSSL_FOUND)
     message(STATUS "OpenSSL Version: ${OPENSSL_VERSION} ${OPENSSL_INCLUDE_DIR} ${OPENSSL_SSL_LIBRARIES} ${OPENSSL_CRYPTO_LIBRARIES}")
 endif()
 
-# Boost Libraries
+# Boost
 set(Boost_USE_MULTITHREADED      ON)
 if(STATIC)
-    set(Boost_USE_STATIC_LIBS        ON)
+    set(Boost_USE_STATIC_LIBS ON)
 else()
-    if(APPLE)
-        set(Boost_USE_STATIC_LIBS        OFF)
-    else()
-        set(Boost_USE_STATIC_LIBS        ON)
-    endif()
+    set(Boost_USE_STATIC_LIBS OFF)
+endif()
+find_package(Boost REQUIRED COMPONENTS program_options)
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+    list(APPEND ADDITIONAL_LIBS ${Boost_LIBRARIES})
 endif()
 
 find_package(Boost REQUIRED COMPONENTS system thread regex program_options date_time filesystem process)
@@ -181,18 +179,6 @@ else()
   endif()
 
   add_executable(${PROJECT_NAME} ${SOURCE_FILES})
-
-  if(APPLE)
-    add_definitions(-DBOOST_LOG_DYN_LINK=1)
-    
-    # Address sanitizer options (optional, disabled by default)
-    if(ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-      message(STATUS "Address sanitizer enabled for debugging")
-      list(APPEND TEST_OPTIONS -fsanitize=address -fno-omit-frame-pointer -fsanitize-recover=address -g)
-      target_compile_options(${PROJECT_NAME} PRIVATE ${TEST_OPTIONS})
-      target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
-    endif()
-  endif()
 
   target_link_libraries(${PROJECT_NAME} ${ADDITIONAL_LIBS})
 endif()
