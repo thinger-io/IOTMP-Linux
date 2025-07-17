@@ -73,6 +73,22 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 
+# json
+FetchContent_Declare(
+  json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.12.0
+)
+FetchContent_MakeAvailable(json)
+
+# httplib
+FetchContent_Declare(
+  httplib
+  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+  GIT_TAG v0.16.0
+)
+FetchContent_MakeAvailable(httplib)
+
 if (NOT PROJECT_IS_TOP_LEVEL)
 
   # Source files
@@ -105,6 +121,8 @@ if (NOT PROJECT_IS_TOP_LEVEL)
   # Link dependencies with modern CMake
   target_link_libraries(${PROJECT_NAME} PUBLIC
       spdlog::spdlog
+      nlohmann_json::nlohmann_json
+      httplib::httplib
       OpenSSL::SSL
       OpenSSL::Crypto
       Boost::system
@@ -114,8 +132,6 @@ if (NOT PROJECT_IS_TOP_LEVEL)
       Boost::date_time
       Boost::filesystem
       Boost::process
-      $<$<TARGET_EXISTS:nlohmann_json::nlohmann_json>:nlohmann_json::nlohmann_json>
-      $<$<TARGET_EXISTS:httplib::httplib>:httplib::httplib>
       $<$<PLATFORM_ID:Linux>:util>
       $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
   )
@@ -128,22 +144,6 @@ if (NOT PROJECT_IS_TOP_LEVEL)
 else()
 
   message(STATUS "Generating binary of ${PROJECT_NAME}")
-  
-  # json
-  FetchContent_Declare(
-    json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.12.0
-  )
-  FetchContent_MakeAvailable(json)
-  
-  # httplib
-  FetchContent_Declare(
-          httplib
-          GIT_REPOSITORY  https://github.com/yhirose/cpp-httplib.git
-          GIT_TAG         v0.16.0
-  )
-  FetchContent_MakeAvailable(httplib)
 
   # Source files
   file(GLOB_RECURSE SOURCE_FILES
