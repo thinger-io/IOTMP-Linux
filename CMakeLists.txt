@@ -48,7 +48,7 @@ if(STATIC)
 else()
     set(Boost_USE_STATIC_LIBS OFF)
 endif()
-find_package(Boost REQUIRED COMPONENTS system thread program_options date_time filesystem process)
+find_package(Boost REQUIRED COMPONENTS system program_options date_time process)
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
@@ -126,13 +126,10 @@ if (NOT PROJECT_IS_TOP_LEVEL)
       OpenSSL::SSL
       OpenSSL::Crypto
       Boost::system
-      Boost::thread
       Boost::program_options
       Boost::date_time
-      Boost::filesystem
       Boost::process
       $<$<PLATFORM_ID:Linux>:util>
-      $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
   )
 
   target_include_directories(${PROJECT_NAME} PUBLIC 
@@ -183,12 +180,9 @@ else()
       OpenSSL::SSL
       OpenSSL::Crypto
       Boost::system
-      Boost::thread
       Boost::program_options
       Boost::date_time
-      Boost::filesystem
       Boost::process
       $<$<PLATFORM_ID:Linux>:util>
-      $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
   )
 endif()
