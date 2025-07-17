@@ -48,10 +48,14 @@ endif()
 
 # Boost Libraries
 set(Boost_USE_MULTITHREADED      ON)
-if(APPLE)
-    set(Boost_USE_STATIC_LIBS        OFF)
-else()
+if(STATIC)
     set(Boost_USE_STATIC_LIBS        ON)
+else()
+    if(APPLE)
+        set(Boost_USE_STATIC_LIBS        OFF)
+    else()
+        set(Boost_USE_STATIC_LIBS        ON)
+    endif()
 endif()
 
 find_package(Boost REQUIRED COMPONENTS system thread regex program_options date_time filesystem process)
@@ -154,8 +158,13 @@ else()
     set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
     set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
-    # generate a static binary
-    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static -pthread")
+    if(APPLE)
+      # macOS doesn't support full static linking, but we can statically link libstdc++ and other libs
+      SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -pthread")
+    else()
+      # generate a static binary for Linux
+      SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static -pthread")
+    endif()
   endif()
 
   if(APPLE)
