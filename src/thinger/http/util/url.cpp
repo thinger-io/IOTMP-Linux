@@ -1,5 +1,5 @@
 #include "url.hpp"
-#include <boost/regex.hpp>
+#include <regex>
 
 namespace thinger::http::util::url{
 
@@ -97,10 +97,10 @@ namespace thinger::http::util::url{
     {
         if(start==end) return;
 
-        static const boost::regex params_regex("([^=]+)=?([^&]*)&?");
-        boost::smatch what;
+        static const std::regex params_regex("([^=]+)=?([^&]*)&?");
+        std::smatch what;
 
-        while (boost::regex_search(start, end, what, params_regex))
+        while (std::regex_search(start, end, what, params_regex))
         {
             std::string key(what[1].first, what[1].second);
             std::string value(what[2].first, what[2].second);

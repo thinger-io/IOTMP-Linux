@@ -796,11 +796,6 @@ namespace thinger::asio{
         handler(boost::asio::error::operation_not_supported, 0);
     }
 
-    void websocket::async_read_until(boost::asio::streambuf& buffer, const boost::regex & expr, ec_size_handler handler)
-    {
-        handler(boost::asio::error::operation_not_supported, 0);
-    }
-
     void websocket::async_read_until(boost::asio::streambuf &buffer, const std::string &delim, ec_size_handler handler){
         handler(boost::asio::error::operation_not_supported, 0);
     }

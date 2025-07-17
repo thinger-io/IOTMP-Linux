@@ -26,7 +26,6 @@ public:
 	void async_write_some(uint8_t buffer[], size_t size, ec_size_handler handler) override;
 	void async_read(uint8_t buffer[], size_t size, ec_size_handler handler) override;
     void async_read(boost::asio::streambuf&, size_t, std::function<void(const boost::system::error_code&, std::size_t)>) override;
-	void async_read_until(boost::asio::streambuf& buffer, const boost::regex & expr, ec_size_handler handler) override;
     void async_read_until(boost::asio::streambuf &buffer, const std::string &delim, ec_size_handler handler) override;
 
     // write

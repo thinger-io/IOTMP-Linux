@@ -1,5 +1,6 @@
 #include "http_request.hpp"
 #include <unordered_map>
+#include <set>
 #include "../util/logger.hpp"
 
 namespace thinger::http {
@@ -123,9 +124,9 @@ namespace thinger::http {
     }
 
     bool http_request::set_url(const std::string& url){
-        static const boost::regex uri_regex(R"((wss?|https?):\/\/(?:(.*):(.*)@)?([a-zA-Z\.\-0-9_]+)(?::(\d+))*(.*))");
-        boost::match_results<std::string::const_iterator> results;
-        if (boost::regex_match(url, results, uri_regex)) {
+        static const std::regex uri_regex(R"((wss?|https?):\/\/(?:(.*):(.*)@)?([a-zA-Z\.\-0-9_]+)(?::(\d+))*(.*))");
+        std::match_results<std::string::const_iterator> results;
+        if (std::regex_match(url, results, uri_regex)) {
             std::string protocol = results[1];
             std::string username = results[2];
             std::string password = results[3];
@@ -276,12 +277,12 @@ namespace thinger::http {
     }
 
     void http_request::set_uri(const std::string& uri){
-        boost::smatch what;
+        std::smatch what;
         std::string::const_iterator start = uri.begin();
         std::string::const_iterator end   = uri.end();
 
-        static const boost::regex resource_regex("(\\/[^\\?#]*)");
-        if(boost::regex_search(start, end, what, resource_regex)){
+        static const std::regex resource_regex("(\\/[^\\?#]*)");
+        if(std::regex_search(start, end, what, resource_regex)){
             resource_ = util::url::url_decode(std::string(what[0].first, what[1].second));
             start = what[0].second;
         }

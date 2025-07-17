@@ -6,11 +6,10 @@
 #include <functional>
 #include <thread>
 #include <mutex>
-#include <iostream>
+#include <map>
 
 #include <boost/asio.hpp>
 #include <boost/asio/buffer.hpp>
-#include <boost/regex.hpp>
 
 #include "../../util/types.hpp"
 
@@ -37,7 +36,6 @@ public:
     virtual void async_write_some(ec_size_handler handler) = 0;
     virtual void async_read(uint8_t buffer[], size_t size, ec_size_handler handler) = 0;
     virtual void async_read(boost::asio::streambuf &buffer, size_t size, ec_size_handler handler) = 0;
-    virtual void async_read_until(boost::asio::streambuf &buffer, const boost::regex &expr, ec_size_handler handler) = 0;
     virtual void async_read_until(boost::asio::streambuf &buffer, const std::string &delim, ec_size_handler handler) = 0;
 
     // write

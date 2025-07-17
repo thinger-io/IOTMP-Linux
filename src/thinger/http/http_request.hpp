@@ -2,7 +2,7 @@
 #define HTTP_REQUEST_HPP
 
 #include <boost/asio.hpp>
-#include <boost/regex.hpp>
+#include <regex>
 #include <utility>
 #include "http_headers.hpp"
 #include "http_cookie_store.hpp"

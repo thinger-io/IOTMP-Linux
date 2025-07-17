@@ -1,5 +1,5 @@
 #include "http_cookie.hpp"
-#include <boost/regex.hpp>
+#include <regex>
 
 namespace thinger::http {
 
@@ -12,10 +12,10 @@ namespace thinger::http {
         if(start==end) return newCookie;
 
         // todo move to a static regex
-        static boost::regex cookie_regex("(.*?)=(.*?)($|;|,(?! ))");
-        boost::smatch what;
+        static std::regex cookie_regex("(.*?)=(.*?)($|;|,(?! ))");
+        std::smatch what;
 
-        while (boost::regex_search(start, end, what, cookie_regex))
+        while (std::regex_search(start, end, what, cookie_regex))
         {
             std::string key(what[1].first, what[1].second);
             std::string value(what[2].first, what[2].second);

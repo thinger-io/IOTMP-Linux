@@ -89,11 +89,6 @@ namespace thinger::asio{
         boost::asio::async_read(ssl_stream_, buffer, boost::asio::transfer_exactly(size), handler);
     }
 
-    void ssl_socket::async_read_until(boost::asio::streambuf& buffer, const boost::regex & expr, ec_size_handler handler)
-    {
-        boost::asio::async_read_until(ssl_stream_, buffer, expr, handler);
-    }
-
     void ssl_socket::async_read_until(boost::asio::streambuf &buffer, const std::string &delim, ec_size_handler handler)
     {
         boost::asio::async_read_until(ssl_stream_, buffer, delim, handler);

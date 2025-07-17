@@ -148,10 +148,6 @@ namespace thinger::asio {
         boost::asio::async_read(socket_, buffer, boost::asio::transfer_exactly(size), handler);
     }
 
-    void tcp_socket::async_read_until(boost::asio::streambuf& buffer, const boost::regex& expr, ec_size_handler handler){
-        boost::asio::async_read_until(socket_, buffer, expr, handler);
-    }
-
     void tcp_socket::async_read_until(boost::asio::streambuf& buffer, const std::string& delim, ec_size_handler handler){
         boost::asio::async_read_until(socket_, buffer, delim, handler);
     }

@@ -48,7 +48,7 @@ if(STATIC)
 else()
     set(Boost_USE_STATIC_LIBS OFF)
 endif()
-find_package(Boost REQUIRED COMPONENTS system thread regex program_options date_time filesystem process)
+find_package(Boost REQUIRED COMPONENTS system thread program_options date_time filesystem process)
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
@@ -127,7 +127,6 @@ if (NOT PROJECT_IS_TOP_LEVEL)
       OpenSSL::Crypto
       Boost::system
       Boost::thread
-      Boost::regex
       Boost::program_options
       Boost::date_time
       Boost::filesystem
@@ -185,7 +184,6 @@ else()
       OpenSSL::Crypto
       Boost::system
       Boost::thread
-      Boost::regex
       Boost::program_options
       Boost::date_time
       Boost::filesystem
