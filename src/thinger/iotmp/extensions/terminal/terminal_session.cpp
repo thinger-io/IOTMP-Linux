@@ -46,6 +46,7 @@ namespace thinger::iotmp{
     }
 
     void terminal_session::write(uint8_t* buffer, size_t size){
+        increase_received(size);  // Count bytes received from stream
         descriptor_.async_write_some(boost::asio::const_buffer(buffer, size), [this, self = shared_from_this()](const boost::system::error_code& ec, std::size_t bytes_transferred){
             if(ec) stop();
         });
@@ -61,6 +62,7 @@ namespace thinger::iotmp{
                 return;
             }
             if(bytes_transferred){
+                increase_sent(bytes_transferred);  // Count bytes sent to stream
                 try{
                     client_.stream_resource(stream_id_, &read_buffer_[0], bytes_transferred);
                 }catch(const std::exception & e) {
