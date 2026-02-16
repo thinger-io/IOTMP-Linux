@@ -48,7 +48,7 @@ if(STATIC)
 else()
     set(Boost_USE_STATIC_LIBS OFF)
 endif()
-find_package(Boost REQUIRED COMPONENTS system program_options date_time process)
+find_package(Boost REQUIRED COMPONENTS system program_options date_time process iostreams)
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
@@ -89,6 +89,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(httplib)
 
+# thinger-http
+set(THINGER_HTTP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(THINGER_HTTP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(THINGER_HTTP_ENABLE_LOGGING ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  thinger_http
+  GIT_REPOSITORY https://github.com/thinger-io/thinger-http.git
+  GIT_TAG main
+)
+FetchContent_MakeAvailable(thinger_http)
+
 if (NOT PROJECT_IS_TOP_LEVEL)
 
   # Source files
@@ -120,6 +131,7 @@ if (NOT PROJECT_IS_TOP_LEVEL)
 
   # Link dependencies with modern CMake
   target_link_libraries(${PROJECT_NAME} PUBLIC
+      thinger::http
       spdlog::spdlog
       nlohmann_json::nlohmann_json
       httplib::httplib
@@ -140,15 +152,6 @@ if (NOT PROJECT_IS_TOP_LEVEL)
 else()
 
   message(STATUS "Generating binary of ${PROJECT_NAME}")
-
-  # Source files
-  file(GLOB_RECURSE SOURCE_FILES
-    "src/*.hpp"
-    "src/*.h"
-    "src/*.cpp"
-    "src/*.cc"
-    "src/*.c"
-  )
 
   # Platform-specific configurations
   if(NOT APPLE)
@@ -171,18 +174,34 @@ else()
     endif()
   endif()
 
-  add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+  # Core and extension files
+  file(GLOB CORE_FILES
+      "src/thinger/iotmp/core/*.cpp"
+  )
+  file(GLOB EXTENSION_FILES
+      "src/thinger/iotmp/extensions/fs/*.cpp"
+      "src/thinger/iotmp/extensions/terminal/*.cpp"
+      "src/thinger/iotmp/extensions/version/*.cpp"
+  )
+
+  add_executable(${PROJECT_NAME}
+      src/main.cpp
+      ${CORE_FILES}
+      ${EXTENSION_FILES}
+  )
 
   target_link_libraries(${PROJECT_NAME} PRIVATE
+      thinger::http
       spdlog::spdlog
       nlohmann_json::nlohmann_json
-      httplib::httplib
       OpenSSL::SSL
       OpenSSL::Crypto
       Boost::system
       Boost::program_options
-      Boost::date_time
       Boost::process
       $<$<PLATFORM_ID:Linux>:util>
   )
+
+  target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
 endif()
