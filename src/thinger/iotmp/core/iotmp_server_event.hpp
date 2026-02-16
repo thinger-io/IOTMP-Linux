@@ -12,7 +12,7 @@ namespace thinger{
             set_stream_echo(false);
         }
 
-        protoson::pson& get_params(){
+        iotmp::json_t& get_params(){
             return event_config_;
         }
 
@@ -25,8 +25,8 @@ namespace thinger{
         }
 
     private:
-        iotmp::server::run resource_ = iotmp::server::run::NONE;
-        protoson::pson event_config_;
+        iotmp::server::run resource_ = iotmp::server::run::SUBSCRIBE_EVENT;
+        iotmp::json_t event_config_;
 
     };
 

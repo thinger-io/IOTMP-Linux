@@ -1,7 +1,7 @@
 #ifndef THINGER_IOTMP_TERMINAL_HPP
 #define THINGER_IOTMP_TERMINAL_HPP
 
-#include "../streams/stream_manager.hpp"
+#include "../../core/iotmp_stream_manager.hpp"
 
 namespace thinger::iotmp{
 
@@ -14,7 +14,7 @@ namespace thinger::iotmp{
 
     protected:
 
-        std::shared_ptr<stream_session> create_session(client& client, uint16_t stream_id, std::string session, pson& parameters) override;
+        std::shared_ptr<stream_session> create_session(client& client, uint16_t stream_id, std::string session, json_t& parameters) override;
 
     };
 

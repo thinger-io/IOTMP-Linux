@@ -6,7 +6,7 @@
 
 namespace thinger::iotmp{
 
-    cmd::cmd(thinger::iotmp::client& client)
+    cmd::cmd(client& client)
     {
         // initialize cmd resource
         client["cmd"] = [this](input& in, output& out){
@@ -19,9 +19,9 @@ namespace thinger::iotmp{
             }else{
                 std::string pout;
                 std::string perr;
-                auto retcode = exec(in["command"], pout, perr);
+                auto retcode = exec(get_value(in.payload(), "command", empty::string), pout, perr);
 
-                std::string mode = in["mode"];
+                std::string mode = get_value(in.payload(), "mode", empty::string);
                 if(mode=="api" || mode == ""){
                     out["retcode"] = retcode;
                     out["stdout"]  = pout;
@@ -52,7 +52,7 @@ namespace thinger::iotmp{
 
     int cmd::exec(const std::string& command, std::string& pout, std::string& perr)
     {
-        LOG_INFO("$ %s", command.c_str());
+        LOG_INFO("$ {}", command);
 
         try{
             boost::asio::io_context ioc;
@@ -98,7 +98,7 @@ namespace thinger::iotmp{
             on_stderr = [&](boost::system::error_code ec, std::size_t size) {
                 if (!ec) {
                     perr.append(stderr_data.data(), size);
-                    LOG_ERROR("%.*s", (int)size, stderr_data.data());
+                    LOG_ERROR("{}", std::string_view(stderr_data.data(), size));
                     stderr_data.erase(0, size);
 
                     // Continuar leyendo
@@ -132,7 +132,7 @@ namespace thinger::iotmp{
             return exit_code;
 
         }catch(const std::exception & e) {
-            LOG_ERROR("error while executing command: %s", e.what());
+            LOG_ERROR("error while executing command: {}", e.what());
             return EXIT_FAILURE;
         }catch(...){
             return EXIT_FAILURE;

@@ -3,7 +3,7 @@
 
 namespace thinger::iotmp{
 
-    terminal::terminal(thinger::iotmp::client& client) : stream_manager(client, "$terminal/:session")
+    terminal::terminal(client& client) : stream_manager(client, "$terminal/:session")
     {
         // initialize path to receive shell parameters updates (mainly over http requests)
         client["$terminal/:session/params"] = [&](input& in, output& out){
@@ -18,8 +18,8 @@ namespace thinger::iotmp{
         };
     }
 
-    std::shared_ptr<stream_session> terminal::create_session(thinger::iotmp::client& client, uint16_t stream_id, std::string session,
-                                                             protoson::pson& parameters){
+    std::shared_ptr<stream_session> terminal::create_session(client& client, uint16_t stream_id, std::string session,
+                                                             json_t& parameters){
         return std::make_shared<terminal_session>(client, stream_id, session, parameters);
     }
 

@@ -21,33 +21,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef THINGER_CLIENT_MESSAGE_HPP
-#define THINGER_CLIENT_MESSAGE_HPP
+#ifndef THINGER_IOTMP_MESSAGE_HPP
+#define THINGER_IOTMP_MESSAGE_HPP
 
-#include "pson.h"
-#include "pson_to_json.hpp"
-#include "thinger_map.hpp"
-#include <type_traits>
+#include "iotmp_types.hpp"
+#include <unordered_map>
 
 namespace thinger::iotmp{
 
 
-    template <typename E>
-    constexpr auto to_underlying(E e) noexcept
-    {
-        return static_cast<std::underlying_type_t<E>>(e);
-    }
-
     namespace message{
 
         enum wire_type{
-            varint                  = 0x00,
-            pson                    = 0x01,
-            json                    = 0x02,
-            messagepack             = 0x03,
-            bson                    = 0x04,
-            cbor                    = 0x05,
-            ubjson                  = 0x06
+            varint                  = 0x00,  // For numeric fields (stream_id, etc.)
+            pson_v1                 = 0x01,  // Legacy PSON (protoson library)
+            pson_v2                 = 0x02,  // New PSON (nlohmann::json + PSON wire format)
+            // Future protocol extensions:
+            // msgpack              = 0x03,
+            // cbor                 = 0x04,
+            // protobuf             = 0x05,
+            // 0x06-0x07 reserved
         };
 
         enum type {
@@ -64,89 +57,47 @@ namespace thinger::iotmp{
             STREAM_DATA             = 0x0a
         };
 
-        enum common {
-            STREAM_ID               = 0X01
+        enum field {
+            STREAM_ID               = 0X01,
+            PARAMETERS              = 0x02,
+            PAYLOAD                 = 0x03,
+            RESOURCE                = 0x04,
         };
 
         namespace stream{
-            enum  stream{
-                PARAMETERS          = 0x02,
-                PAYLOAD             = 0x03
-            };
-
-            namespace parameters{
-                enum parameters{
-                    RESOURCE_INPUT      = 0x01,
-                    RESOURCE_OUTPUT     = 0x02
-                };
-            }
-        }
-
-        namespace run{
-            enum run {
-                PARAMETERS           = 0X02,
-                PAYLOAD              = 0X03,
-                RESOURCE             = 0X04
+            enum class parameters{
+                RESOURCE_INPUT      = 0x01,
+                RESOURCE_OUTPUT     = 0x02
             };
         }
 
         namespace connect{
-            enum connect {
-                PARAMETERS              = 0x02,
-                CREDENTIALS             = 0X03,
-                KEEP_ALIVE              = 0X04,
-                ENCODING                = 0X05
-            };
-        }
-
-        namespace start_stream{
-
-            enum start_stream {
-                PARAMETERS              = 0X02,
-                RESOURCE                = 0x03,
-                SCOPE                   = 0x04
-            };
-            namespace scope{
-                enum scope{
-                    MQTT_SUBSCRIBE      = 0x01,
-                    MQTT_PUBLISH        = 0x02,
-                    SERVER_EVENT        = 0X03,
-                };
-            }
-        }
-
-        namespace describe{
-            enum describe {
-                PARAMETERS              = 0x02,
-                RESOURCE                = 0x03
-            };
-        }
-
-        namespace ok{
-            enum ok{
-                PARAMETERS              = 0X02,
-                PAYLOAD                 = 0X03
-            };
-        }
-
-        namespace error{
-            enum ok{
-                PARAMETERS              = 0X02,
-                PAYLOAD                 = 0X03
-            };
-        }
-
-        namespace disconnect{
-            enum disconnect {
-                REASON                  = 0x02,
-                PAYLOAD                 = 0X03
+            // Connect message uses standard fields:
+            // - PARAMETERS (0x02): connection parameters (optional)
+            // - PAYLOAD (0x03): auth data (format depends on "at" parameter)
+            
+            // Parameter keys for CONNECT message
+            constexpr const char* PROTOCOL_VERSION = "pv";  // Protocol version (0=legacy PSON, 1=new PSON)
+            constexpr const char* KEEP_ALIVE = "ka";         // Keep-alive interval in seconds
+            constexpr const char* AUTH_TYPE = "at";          // Authentication type (default: 0 = CREDENTIALS)
+            
+            // Future parameter keys:
+            constexpr const char* CLIENT_TYPE = "ct";        // Client type/platform
+            constexpr const char* FIRMWARE = "fw";           // Firmware version
+            
+            // Authentication types
+            enum class auth_type : uint8_t {
+                CREDENTIALS = 0,     // Default: [username, device, password] in PAYLOAD
+                // Future auth types:
+                // AUTO_PROVISION = 1,  // Auto-provisioning with provision key
+                // TOKEN = 2,           // JWT/Bearer token
+                // API_KEY = 3,         // API key authentication
             };
         }
     }
 
     namespace server{
-        enum class run : uint8_t{
-            NONE                        = 0X00,
+        enum run{
             READ_DEVICE_PROPERTY        = 0X01,
             SET_DEVICE_PROPERTY         = 0X02,
             CALL_DEVICE                 = 0X03,
@@ -187,7 +138,7 @@ namespace thinger::iotmp{
         message::type message_type_;
 
         /// message fields
-        thinger_map<uint8_t, pson> fields_;
+        std::unordered_map<uint8_t, json_t> fields_;
 
     public:
 
@@ -226,63 +177,34 @@ namespace thinger::iotmp{
             }
         }
 
-#ifdef ARDUINO
-        String dump(bool input) const{
-            String result;
-
-            result += String("[") + message_type() + "] ";
-            for(auto it = fields_.begin(); it.valid(); it.next()){
-                pson& value = it.item().right;
-                result += String("(") + it.item().left + ":";
-                json_encoder encoder(result);
-                encoder.encode(value);
-                result += ") ";
-            }
-            return result;
-        }
-#else
-        std::string dump(bool input){
-            std::stringstream result;
-
-            result << "(" << message_type() << ") ";
-            for(auto it = fields_.begin(); it.valid(); it.next()){
-                pson& value = it.item().right;
-                result << "(" << std::to_string(it.item().left) << ":";
-                json_encoder encoder(result);
-                encoder.encode(value);
-                result << ") ";
-            }
-
-            return result.str();
-        }
-        
-#endif
-
-
     public:
 
         uint16_t get_stream_id(){
-            return fields_[message::common::STREAM_ID];
+            auto it = fields_.find(message::field::STREAM_ID);
+            if(it != fields_.end() && it->second.is_number()) {
+                return it->second.get<uint16_t>();
+            }
+            return 0;
         }
 
         void set_stream_id(uint16_t stream_id) {
-            fields_[message::common::STREAM_ID] = stream_id;
+            fields_[message::field::STREAM_ID] = stream_id;
         }
 
         void set_random_stream_id(){
             // TODO, random seed
-            fields_[message::common::STREAM_ID] = (uint16_t) rand();
+            fields_[message::field::STREAM_ID] = (uint16_t) rand();
         }
 
-        thinger_map<uint8_t, pson>& get_fields(){
+        std::unordered_map<uint8_t, json_t>& get_fields(){
             return fields_;
         }
 
-        bool has_field(uint8_t flag_id){
+        bool has_field(uint8_t flag_id) const{
             return fields_.contains(flag_id);
         }
 
-        protoson::pson& operator[](uint8_t field){
+        json_t& operator[](uint8_t field){
             return fields_[field];
         }
 
@@ -290,8 +212,37 @@ namespace thinger::iotmp{
             return fields_.erase(field_id);
         }
 
-        void set_field(uint8_t flag_id, protoson::pson& data){
-            protoson::pson::swap(data, fields_[flag_id]);
+        void set_field(uint8_t flag_id, const json_t& data){
+            fields_[flag_id] = data;
+        }
+
+        // Convenience methods for accessing common fields
+        json_t& params(){
+            return fields_[message::field::PARAMETERS];
+        }
+
+        const json_t& params() const{
+            auto it = fields_.find(message::field::PARAMETERS);
+            static const json_t empty_json;
+            return it != fields_.end() ? it->second : empty_json;
+        }
+
+        json_t& payload(){
+            return fields_[message::field::PAYLOAD];
+        }
+
+        const json_t& payload() const{
+            auto it = fields_.find(message::field::PAYLOAD);
+            static const json_t empty_json;
+            return it != fields_.end() ? it->second : empty_json;
+        }
+
+        bool has_params() const{
+            return has_field(message::field::PARAMETERS);
+        }
+
+        bool has_payload() const{
+            return has_field(message::field::PAYLOAD);
         }
     };
 

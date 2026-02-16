@@ -24,18 +24,14 @@
 #ifndef THINGER_CLIENT_RESOURCE_HPP
 #define THINGER_CLIENT_RESOURCE_HPP
 
-#include "thinger_map.hpp"
-#include "pson.h"
 #include "iotmp_message.hpp"
 #include "thinger_result.hpp"
-#include "../../util/logger.hpp"
+#include <thinger/util/logger.hpp>
 #include <functional>
+#include <string_view>
+#include <nlohmann/json.hpp>
 
 #ifdef __has_include
-#  if __has_include(<nlohmann/json.hpp>)
-#    include "pson_to_json.hpp"
-#    include "../../util/json_decoder.hpp"
-#  endif
 #  if __has_include(<httplib.h>)
 #    include <httplib.h>
 #    define THINGER_USE_LOCAL_HTTPLIB
@@ -44,6 +40,106 @@
 
 namespace thinger::iotmp{
 
+    using json = nlohmann::json;
+
+    // Helper function to safely get values from JSON with default fallback
+    // Supports nested paths using dot notation (e.g., "size.cols")
+    template <typename T>
+    auto get_value(const nlohmann::json& json, const std::string& path, const T& default_value)
+    -> typename std::conditional<
+            std::is_same<T, nlohmann::json>::value || std::is_same<T, std::string>::value,
+            const T&,
+            T>::type {
+
+        const auto* current = &json;
+
+        if(!path.empty()){
+            size_t start = 0;
+            size_t end = path.find('.');
+
+            // Traverse the JSON over path segments
+            while (end != std::string::npos) {
+                const std::string_view current_path_segment(path.data() + start, end - start);
+                auto found = current->find(current_path_segment);
+                if (found != current->end()) {
+                    current = &(*found);
+                } else {
+                    return default_value;
+                }
+                start = end + 1;
+                end = path.find('.', start);
+            }
+
+            // Last segment or the case without any '.' in the path.
+            const std::string_view last_path_segment(path.data() + start, path.length() - start);
+            const auto& found = current->find(last_path_segment);
+            if (found != current->end()) {
+                current = &(*found);
+            } else {
+                return default_value;
+            }
+        }
+
+        if constexpr (std::is_same<T, nlohmann::json>::value) {
+            return *current;
+        } else if constexpr (std::is_same<T, std::string>::value) {
+            try {
+                return current->get_ref<const std::string&>();
+            } catch (...) {
+                return default_value;
+            }
+        } else {
+            try {
+                return current->get<T>();
+            } catch (...) {
+                return default_value;
+            }
+        }
+    }
+
+    // Empty static values for use as defaults
+    namespace empty{
+        static const nlohmann::json json;
+        static const nlohmann::json array = nlohmann::json::array();
+        static const std::string string;
+    }
+
+    // Proxy class for auto-initializing JSON fields with default values
+    class json_proxy {
+        json& data_;
+        bool describe_;
+    public:
+        json_proxy(json& data, bool describe) : data_(data), describe_(describe) {}
+
+        // Conversion operator - auto-initializes with default value if null and in describe mode
+        template<class T>
+        operator T() {
+            if(data_.is_null()) {
+                data_ = T{};
+            }
+            return data_.get<T>();
+        }
+
+        // Allow assignment
+        template<class T>
+        json_proxy& operator=(T value) {
+            data_ = value;
+            return *this;
+        }
+
+        // Allow nested access
+        json_proxy operator[](const char* name) {
+            return json_proxy(data_[name], describe_);
+        }
+
+        // Access to underlying json
+        json& get() { return data_; }
+        const json& get() const { return data_; }
+
+        // Implicit conversion to json& for backwards compatibility
+        operator json&() { return data_; }
+        operator const json&() const { return data_; }
+    };
 
     class input{
     public:
@@ -55,22 +151,26 @@ namespace thinger::iotmp{
 
         template <class T>
         inline operator T() {
-            return (T) data_;
+            // Auto-initialize if null (for DESCRIBE mode)
+            if(data_.is_null()) {
+                data_ = T{};
+            }
+            return data_.get<T>();
         }
 
-        inline operator protoson::pson&(){
+        inline operator json&(){
             return data_;
         }
 
-        inline protoson::pson& operator[](const char *name) {
-            return data_[name];
+        inline json_proxy operator[](const char *name) {
+            return json_proxy(data_[name], describe_);
         }
 
-        inline protoson::pson* operator->() {
+        inline json* operator->() {
             return &data_;
         }
 
-        input(uint16_t stream_id, protoson::pson& data, bool describe=false) :
+        input(uint16_t stream_id, json& data, bool describe=false) :
             stream_id_(stream_id), data_(data), describe_(describe)
         {
 
@@ -81,27 +181,31 @@ namespace thinger::iotmp{
         }
 
     protected:
-        uint16_t        stream_id_  = 0;
-        protoson::pson& data_;
-        protoson::pson* params_     = nullptr;
-        protoson::pson* path_       = nullptr;
-        bool describe_              = false;
+        uint16_t    stream_id_  = 0;
+        json&       data_;
+        json*       params_     = nullptr;
+        json*       path_       = nullptr;
+        bool        describe_   = false;
 
     public:
 
-        const char* path(const char* field, const char* def="") {
-            return path_ == nullptr ? def : (const char*)(*path_)[field];
+        std::string path(std::string_view field, std::string_view def = "") const {
+            if(path_ == nullptr || !path_->contains(field.data())) return std::string(def);
+            const auto& value = (*path_)[field.data()];
+            return value.is_string() ? value.get<std::string>() : std::string(def);
         }
 
-        const char* params(const char* field, const char* def="") {
-            return params_ == nullptr ? def : (const char*)(*params_)[field];
+        std::string params(std::string_view field, std::string_view def = "") const {
+            if(params_ == nullptr || !params_->contains(field.data())) return std::string(def);
+            const auto& value = (*params_)[field.data()];
+            return value.is_string() ? value.get<std::string>() : std::string(def);
         }
 
-        void set_path_fields(pson& path){
+        void set_path_fields(json& path){
             path_ = &path;
         }
 
-        void set_params(pson& params){
+        void set_params(json& params){
             params_ = &params;
         }
 
@@ -121,12 +225,26 @@ namespace thinger::iotmp{
             return params_ != nullptr;
         }
 
+        inline json& get_params() {
+            static json empty = json::object();
+            return params_ != nullptr ? *params_ : empty;
+        }
+
         inline bool is_empty() const {
-            return data_.is_empty();
+            return data_.is_null() || (data_.is_object() && data_.empty()) ||
+                   (data_.is_array() && data_.empty());
         }
 
         inline bool fill_state() const {
-            return data_.is_empty();
+            return is_empty();
+        }
+
+        inline json& payload() {
+            return data_;
+        }
+
+        inline const json& payload() const {
+            return data_;
         }
     };
 
@@ -141,18 +259,18 @@ namespace thinger::iotmp{
 
         template <class T>
         inline operator T() {
-            return (T) data_;
+            return data_.get<T>();
         }
 
-        inline operator protoson::pson&(){
+        inline operator json&(){
             return data_;
         }
 
-        inline protoson::pson& operator[](const char *name) {
+        inline json& operator[](const char *name) {
             return data_[name];
         }
 
-        output(protoson::pson& data, bool describe=false) : data_(data), code_(0), describe_(describe){
+        output(json& data, bool describe=false) : data_(data), code_(0), describe_(describe), success_(true){
 
         }
 
@@ -161,9 +279,10 @@ namespace thinger::iotmp{
         }
 
     protected:
-        protoson::pson& data_;
-        int code_;
-        bool describe_;
+        json&   data_;
+        int     code_;
+        bool    describe_;
+        bool    success_;
 
     public:
 
@@ -179,12 +298,38 @@ namespace thinger::iotmp{
             code_ = code;
         }
 
-        inline int get_return_code() {
+        inline int get_return_code() const {
             return code_;
         }
 
+        // Simple error without code (uses 500 by default)
+        inline void set_error(const char* message) {
+            success_ = false;
+            data_["error"] = message;
+        }
+
+        // Error with specific code
+        inline void set_error(int code, const char* message) {
+            success_ = false;
+            code_ = code;
+            data_["error"] = message;
+        }
+
+        inline bool is_success() const {
+            return success_;
+        }
+
         inline bool is_empty() {
-            return data_.is_empty();
+            return data_.is_null() || (data_.is_object() && data_.empty()) ||
+                   (data_.is_array() && data_.empty());
+        }
+
+        inline json& payload() {
+            return data_;
+        }
+
+        inline const json& payload() const {
+            return data_;
         }
     };
 
@@ -210,7 +355,7 @@ namespace thinger::iotmp{
         };
 
 #ifdef THINGER_ENABLE_STREAM_LISTENER
-        std::function<void(uint16_t, pson& path_parameters, pson& parameters, bool enabled, result_handler)> stream_listener_;
+        std::function<void(uint16_t, json_t& path_parameters, json_t& parameters, bool enabled, result_handler)> stream_listener_;
 #endif
 
         io_type     io_type_            = none;
@@ -220,7 +365,7 @@ namespace thinger::iotmp{
 
 #ifdef THINGER_USE_LOCAL_HTTPLIB
         httplib::Server* server_        = nullptr;
-        const char* name_               = nullptr;
+        std::string name_;
 #endif
 
     public:
@@ -248,7 +393,7 @@ namespace thinger::iotmp{
         }
 
 /*
-        void start_stream(uint16_t stream_id, pson& parameters){
+        void start_stream(uint16_t stream_id, json_t& parameters){
 
             if(parameters.is_number()) {
                 stream_id_sampling_ = stream_id;
@@ -268,7 +413,7 @@ namespace thinger::iotmp{
 
 
 
-        void stop_stream(pson& parameters){
+        void stop_stream(json_t& parameters){
 #ifdef THINGER_ENABLE_STREAM_LISTENER
             if(stream_listener_){
                 stream_listener_(stream_id_, parameters, false);
@@ -303,9 +448,9 @@ namespace thinger::iotmp{
 
          */
 
-        iotmp_resource& operator()(const char* name) {
+        iotmp_resource& operator()(std::string_view name) {
 #ifdef THINGER_USE_LOCAL_HTTPLIB
-            name_ = name;
+            name_ = std::string(name);
 #endif
             return *this;
         }
@@ -317,7 +462,7 @@ namespace thinger::iotmp{
         }
 
 
-        iotmp_resource & operator()(pson& data){
+        iotmp_resource & operator()(json_t& data){
             switch(io_type_){
                 case input_wrapper:
                     callback_.input_(data);
@@ -334,7 +479,7 @@ namespace thinger::iotmp{
             return *this;
         }
 
-        iotmp_resource & operator()(pson& in, pson& out){
+        iotmp_resource & operator()(json_t& in, json_t& out){
             switch(io_type_){
                 case input_wrapper:
                     callback_.input_(out);
@@ -365,7 +510,7 @@ namespace thinger::iotmp{
             return io_type_;
         }
 
-        void fill_api(protoson::pson_object& content){
+        void fill_api(json_t& content){
             if(io_type_!=none){
                 content["fn"] = io_type_;
             }
@@ -374,26 +519,34 @@ namespace thinger::iotmp{
         void describe(iotmp_message& message){
             switch(io_type_){
                 case output_wrapper: {
-                    pson out;
+                    json out;
                     output wrapper(out, true);
                     callback_.output_(wrapper);
-                    if(!out.is_empty()) message[message::ok::PAYLOAD]["out"].swap(out);
+                    if(!out.is_null()) {
+                        message[message::field::PAYLOAD]["out"].swap(out);
+                    }
                 }
                     break;
                 case input_output_wrapper: {
-                    pson in, out;
+                    json in, out;
                     input input_wrapper(message.get_stream_id(), in, true);
                     output output_wrapper(out, true);
                     callback_.input_output_(input_wrapper, output_wrapper);
-                    if(!in.is_empty())  message[message::ok::PAYLOAD]["in"].swap(in);
-                    if(!out.is_empty()) message[message::ok::PAYLOAD]["out"].swap(out);
+                    if(!in.is_null()) {
+                        message[message::field::PAYLOAD]["in"].swap(in);
+                    }
+                    if(!out.is_null()) {
+                        message[message::field::PAYLOAD]["out"].swap(out);
+                    }
                 }
                     break;
                 case input_wrapper: {
-                    pson in;
+                    json in;
                     input wrapper(message.get_stream_id(), in, true);
                     callback_.input_(wrapper);
-                    if (!in.is_empty()) message[message::ok::PAYLOAD]["in"].swap(in);
+                    if(!in.is_null()) {
+                        message[message::field::PAYLOAD]["in"].swap(in);
+                    }
                 }
                     break;
                 default:
@@ -406,19 +559,22 @@ namespace thinger::iotmp{
         /**
          * Handle a request and fill a possible response
          */
-        void run_resource(iotmp_message& request, iotmp_message& response){
+        bool run_resource(iotmp_message& request, iotmp_message& response){
+            bool success = true;
+            
             switch(io_type_){
                 case input_wrapper: {
-                    input in(request.get_stream_id(), request[message::run::PAYLOAD]);
+                    input in(request.get_stream_id(), request[message::field::PAYLOAD]);
                     if(request.has_field(0)) in.set_path_fields(request[0]);
-                    if(request.has_field(message::run::PARAMETERS)) in.set_params(request[message::run::PARAMETERS]);
+                    if(request.has_field(message::field::PARAMETERS)) in.set_params(request[message::field::PARAMETERS]);
                     callback_.input_(in);
                 }
                     break;
                 case output_wrapper: {
-                    output out(response[message::run::PAYLOAD]);
+                    output out(response[message::field::PAYLOAD]);
                     callback_.output_(out);
-                    if(out.get_return_code()!=0) response[message::ok::PARAMETERS] = out.get_return_code();
+                    if(out.get_return_code()!=0) response[message::field::PARAMETERS] = out.get_return_code();
+                    success = out.is_success();
                 }
                     break;
                 case run: {
@@ -426,18 +582,21 @@ namespace thinger::iotmp{
                 }
                     break;
                 case input_output_wrapper: {
-                    input in(request.get_stream_id(), request[message::run::PAYLOAD]);
+                    input in(request.get_stream_id(), request[message::field::PAYLOAD]);
                     if(request.has_field(0)) in.set_path_fields(request[0]);
-                    if(request.has_field(message::run::PARAMETERS)) in.set_params(request[message::run::PARAMETERS]);
+                    if(request.has_field(message::field::PARAMETERS)) in.set_params(request[message::field::PARAMETERS]);
 
-                    output out(response[message::run::PAYLOAD], request[message::run::PAYLOAD].is_empty());
+                    output out(response[message::field::PAYLOAD], request[message::field::PAYLOAD].empty());
                     callback_.input_output_(in, out);
-                    if(out.get_return_code()!=0) response[message::ok::PARAMETERS] = out.get_return_code();
+                    if(out.get_return_code()!=0) response[message::field::PARAMETERS] = out.get_return_code();
+                    success = out.is_success();
                 }
                     break;
                 case none:
                     break;
             }
+            
+            return success;
         }
 
         /**
@@ -474,29 +633,32 @@ namespace thinger::iotmp{
             return *this;
         }
 
-        bool matches(const char* res_path, const char* req_path, pson& matches){
-            while(*res_path){
-                if(*res_path==':'){
-                    const char* start_key = ++res_path;
-                    while(*res_path && *res_path!='/') ++res_path;
-                    size_t key_size = res_path-start_key;
-                    char key[key_size+1];
-                    memcpy(key, start_key, key_size);
-                    key[key_size] = 0;
+        bool matches(std::string_view res_path, std::string_view req_path, json_t& matches){
+            size_t res_idx = 0;
+            size_t req_idx = 0;
 
-                    const char* start_value = req_path;
-                    while(*req_path && *req_path!='/') ++req_path;
-                    size_t value_size = req_path-start_value;
-                    char value[value_size+1];
-                    memcpy(value, start_value, value_size);
-                    value[value_size] = 0;
+            while(res_idx < res_path.size()){
+                if(res_path[res_idx] == ':'){
+                    ++res_idx;
+                    size_t key_start = res_idx;
+                    while(res_idx < res_path.size() && res_path[res_idx] != '/') ++res_idx;
+                    std::string key(res_path.substr(key_start, res_idx - key_start));
 
-                    matches[(const char*)key] = (const char*)value;
-                }else if(*res_path++!=*req_path++){
+                    size_t value_start = req_idx;
+                    while(req_idx < req_path.size() && req_path[req_idx] != '/') ++req_idx;
+                    std::string value(req_path.substr(value_start, req_idx - value_start));
+
+                    matches[key] = value;
+                }
+                else if(req_idx >= req_path.size() || res_path[res_idx] != req_path[req_idx]){
                     return false;
                 }
-            };
-            return !*res_path && !*req_path;
+                else {
+                    ++res_idx;
+                    ++req_idx;
+                }
+            }
+            return res_idx == res_path.size() && req_idx == req_path.size();
         }
 
         /**
@@ -513,30 +675,30 @@ namespace thinger::iotmp{
                 while (std::regex_search(path, re)) {
                     path = std::regex_replace(path, re, "([^\\/]+)");
                 }
-                LOG_INFO("starting local endpoint: %s", path.c_str());
+                LOG_INFO("starting local endpoint: {}", path);
                 server_->Get(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
-                    protoson::pson in, path;
+                    json_t in, path;
                     input input_body(0, in, true);
-                    if(matches(name_, req.path.substr(1).c_str(), path)) input_body.set_path_fields(path);
+                    std::string req_path = req.path.substr(1);
+                    if(matches(name_, req_path, path)) input_body.set_path_fields(path);
                     callback_.input_(input_body);
-                    if(!in.is_empty()){
+                    if(!in.empty()){
                         // convert output to json
-                        std::stringstream json_result;
-                        json_encoder encoder(json_result);
-                        encoder.encode(in);
-                        res.set_content(json_result.str(), "application/json");
+                        res.set_content(in.dump(), "application/json");
                     }
                 });
                 server_->Post(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
                     // decode input
-                    protoson::pson in, path;
+                    json_t in, path;
                     input input_body(0, in);
-                    if(matches(name_, req.path.substr(1).c_str(), path)) input_body.set_path_fields(path);
-                    // try to decode json to pson
-                    if(protoson::json_decoder::parse(req.body, in)){
+                    std::string req_path = req.path.substr(1);
+                    if(matches(name_, req_path, path)) input_body.set_path_fields(path);
+                    // try to parse json
+                    try {
+                        in = json_t::parse(req.body);
                         // call the regular input callback
                         callback_.input_(input_body);
-                    }else{
+                    } catch(...) {
                         res.status = 400;
                     }
                 });
@@ -566,21 +728,16 @@ namespace thinger::iotmp{
                 path.append(name_);
                 server_->Get(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
                     // define output & wrapper
-                    protoson::pson out;
+                    json_t out;
                     output out_wrapper(out);
 
                     // call input output callback;
                     callback_.output_(out_wrapper);
 
                     // convert generated data
-                    if(!out.is_empty()){
-                        // convert output to json
-                        std::stringstream json_result;
-                        json_encoder encoder(json_result);
-                        encoder.encode(out);
-
+                    if(!out.empty()){
                         // set return content type
-                        res.set_content(json_result.str(), "application/json");
+                        res.set_content(out.dump(), "application/json");
                     }
 
                     // set return code if any established
@@ -615,30 +772,31 @@ namespace thinger::iotmp{
                 path.append(name_);
 
                 server_->Get(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
-                    protoson::pson in, out;
+                    json_t in, out;
                     input input_body(0, in, true);
                     output output_body(out, true);
                     callback_.input_output_(input_body, output_body);
-                    if(!in.is_empty()){
+                    if(!out.empty()){
                         // convert output to json
-                        std::stringstream json_result;
-                        json_encoder encoder(json_result);
-                        encoder.encode(in);
-                        res.set_content(json_result.str(), "application/json");
+                        res.set_content(out.dump(), "application/json");
                     }
                 });
 
                 server_->Post(path.c_str(), [this](const httplib::Request& req, httplib::Response& res) {
 
                     // decode input
-                    protoson::pson in;
-                    if(!req.body.empty() && !protoson::json_decoder::parse(req.body, in)){
-                        res.status = 400;
-                        return;
+                    json_t in;
+                    if(!req.body.empty()){
+                        try {
+                            in = json_t::parse(req.body);
+                        } catch(...) {
+                            res.status = 400;
+                            return;
+                        }
                     }
 
                     // define output
-                    protoson::pson out;
+                    json_t out;
 
                     input in_wrapper(0, in);
                     output out_wrapper(out);
@@ -647,11 +805,8 @@ namespace thinger::iotmp{
                     callback_.input_output_(in_wrapper, out_wrapper);
 
                     // set response payload
-                    if(!out.is_empty()){
-                        std::stringstream json_result;
-                        json_encoder encoder(json_result);
-                        encoder.encode(out);
-                        res.set_content(json_result.str(), "application/json");
+                    if(!out.empty()){
+                        res.set_content(out.dump(), "application/json");
                     }
 
                     // set return code if any established
@@ -670,11 +825,11 @@ namespace thinger::iotmp{
         /**
           * Establish a function for receiving stream listening events
           */
-        void set_stream_handler(std::function<void(uint16_t stream_id, pson& path_parameters, pson& parameters, bool enabled, result_handler)> stream_listener){
+        void set_stream_handler(std::function<void(uint16_t stream_id, json_t& path_parameters, json_t& parameters, bool enabled, result_handler)> stream_listener){
             stream_listener_ = stream_listener;
         }
 
-        void handle_stream(uint16_t stream_id, pson& path_parameters, pson& parameters, bool enabled, result_handler handler){
+        void handle_stream(uint16_t stream_id, json_t& path_parameters, json_t& parameters, bool enabled, result_handler handler){
             if(stream_listener_){
                 stream_listener_(stream_id, path_parameters, parameters, enabled, std::move(handler));
             }
@@ -687,7 +842,7 @@ namespace thinger::iotmp{
         /**
           * Establish a function for receiving stream listening events
           */
-        std::function<void(uint16_t, pson& path_parameters, pson& parameters, bool enabled, result_handler)> get_stream_listener(){
+        std::function<void(uint16_t, json_t& path_parameters, json_t& parameters, bool enabled, result_handler)> get_stream_listener(){
             return stream_listener_;
         }
 

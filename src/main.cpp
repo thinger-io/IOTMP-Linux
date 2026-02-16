@@ -1,173 +1,166 @@
-// The MIT License (MIT)
-//
-// Copyright (c) 2022 THINGER.IO
-// Author: alvarolb@gmail.com (Alvaro Luis Bustamante)
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+/**
+ * Cliente IOTMP con coroutines C++20
+ */
 
-#include "thinger/thinger.h"
-#include <boost/program_options.hpp>
+#include <iostream>
+#include <csignal>
 #include <filesystem>
+#include <boost/program_options.hpp>
 
-#define DEFAULT_VERBOSITY_LEVEL     0
-#define DEFAULT_TRANSPORT           ""
-#define DEFAULT_HOSTNAME            "iot.thinger.io"
-#define DEFAULT_USERNAME            ""
-#define DEFAULT_DEVICE              ""
-#define DEFAULT_CREDENTIAL          ""
+#include <spdlog/spdlog.h>
+#include <thinger/asio/workers.hpp>
+#include "thinger/iotmp/client.hpp"
+#include "thinger/iotmp/extensions/fs/filesystem.hpp"
+#include "thinger/iotmp/extensions/terminal/terminal.hpp"
+#include "thinger/iotmp/extensions/version/version.hpp"
 
-int main(int argc, char *argv[])
-{
-    // initialize
-    int verbosity_level;
-    std::string username;
-    std::string device;
-    std::string credentials;
-    std::string hostname;
-    std::string transport;
-    std::string config_path;
+using namespace thinger::iotmp;
+namespace po = boost::program_options;
 
-    const char* home = getenv("HOME");
-    if ( home != nullptr ) {
-      config_path = std::filesystem::path{home} / ".thinger" / "iotmp.cfg";
-    }
+int main(int argc, char* argv[]) {
+    // Parsear argumentos
+    std::string username, device, password, hostname, transport;
+    int verbosity = 0;
 
-    namespace po = boost::program_options;
-
-    po::options_description desc("options_description [options]");
+    po::options_description desc("IOTMP Async Client");
     desc.add_options()
-        ("help", "show this help")
-        ("verbosity,v", po::value<int>(&verbosity_level)->default_value(DEFAULT_VERBOSITY_LEVEL), "set verbosity level")
-        ("username,u", po::value<std::string>(&username)->default_value(DEFAULT_USERNAME), "username")
-        ("device,d", po::value<std::string>(&device)->default_value(DEFAULT_DEVICE), "device identifier")
-        ("password,p", po::value<std::string>(&credentials)->default_value(DEFAULT_CREDENTIAL), "device credential")
-        ("host,h", po::value<std::string>(&hostname)->default_value(DEFAULT_HOSTNAME), "target hostname")
-        ("transport,t", po::value<std::string>(&transport)->default_value(DEFAULT_TRANSPORT), "connection transport, i.e., 'websocket'")
-        ("config,c", po::value<std::string>(&config_path), "location of credentials");
+        ("help", "show help")
+        ("username,u", po::value<std::string>(&username), "username")
+        ("device,d", po::value<std::string>(&device), "device identifier")
+        ("password,p", po::value<std::string>(&password), "device password")
+        ("host,h", po::value<std::string>(&hostname)->default_value("iot.thinger.io"), "server hostname")
+        ("transport,t", po::value<std::string>(&transport)->default_value("ssl"), "transport type: ssl, ws, tcp")
+        ("verbosity,v", po::value<int>(&verbosity)->default_value(0), "verbosity level");
 
-    // initialize default values and description
-    po::parse_command_line(argc, argv, desc);
-
-    // create a map for storing parameters
     po::variables_map vm;
 
-    // read parameters from command line
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-
-    // read parameters from environment variables
-    po::store(po::parse_environment(desc, "THINGER_"), vm);
-
-    po::notify(vm);
-
-    // load them also from config file in $HOME/.thinger/iotmp.cfg
     try {
-      if (!config_path.empty()) {
-        auto config_file = std::filesystem::path{config_path};
-
-        if (exists(config_file)) {
-          po::store(po::parse_config_file<char>(config_file.string().c_str(), desc), vm);
-          po::notify(vm);
-        }
-      }
-    } catch (const po::reading_file& e) {
-      LOG_ERROR("error while loading config file: %s", e.what());
-    }
-
-    if (vm.count("help")) {
-        std::cout << desc << std::endl;
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        po::store(po::parse_environment(desc, "THINGER_"), vm);
+        po::notify(vm);
+    } catch(const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
         return 1;
     }
 
-    // initialize logging library
-#ifdef THINGER_LOG_SPDLOG
-    static const std::map<int, spdlog::level::level_enum> level_map = {
-        {0, spdlog::level::info},
-        {1, spdlog::level::debug},
-        {2, spdlog::level::trace}
-    };
-    spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [thread %t] [%^%-8l%$] [%15s:%-5#] %v");
-    spdlog::set_level(level_map.contains(verbosity_level) ? level_map.at(verbosity_level) : spdlog::level::info);
-#elif defined(THINGER_LOG_LOGURU)
-    loguru::init(argc, argv, {});
-#endif
+    if(vm.count("help")) {
+        std::cout << desc << "\n";
+        return 0;
+    }
 
-    // check credentials are provided
-    if(username.empty() || device.empty() || credentials.empty()){
-        LOG_ERROR("username, device, or credentials not provided");
+    if(username.empty() || device.empty() || password.empty()) {
+        std::cerr << "Error: username, device and password are required\n\n";
+        std::cout << desc << "\n";
         return 1;
     }
 
-    // check credentials are provided
-    if(!transport.empty() && transport!="websocket"){
-        LOG_ERROR("invalid transport protocol provided");
+    // Inicializar logger
+    thinger::logging::enable();
+    if(verbosity >= 2) {
+        thinger::logging::set_log_level(spdlog::level::debug);
+    } else if(verbosity >= 1) {
+        thinger::logging::set_log_level(spdlog::level::info);
+    }
+
+    // Determinar tipo de transporte
+    transport_type trans = transport_type::SSL;
+
+    if(transport == "ws" || transport == "websocket") {
+        trans = transport_type::WEBSOCKET;
+    } else if(transport == "tcp") {
+        trans = transport_type::TCP;
+    } else if(transport != "ssl") {
+        std::cerr << "Error: invalid transport '" << transport << "'. Use: ssl, ws, tcp\n";
         return 1;
     }
 
-    // run asio workers
-    thinger::asio::workers.start();
+    // Crear cliente
+    client iotmp_client;
+    iotmp_client.set_credentials(username, device, password);
+    iotmp_client.set_host(hostname);
+    iotmp_client.set_transport(trans);
 
-    // create an iotmp client
-    iotmp::client client{transport};
-
-    // set client credentials
-    client.set_credentials(username, device, credentials);
-
-    // set target hostname
-    client.set_host(hostname.c_str());
-
-    // initialize cmd extension
-    iotmp::cmd cmd(client);
-
-    // initialize terminal extension
-    iotmp::terminal shell(client);
-
-    // initialize proxy extension
-    iotmp::proxy proxy(client);
-
-    // initialize client version extension
-    iotmp::version version(client);
-
-    // example state listener
-    client.set_state_listener([&](iotmp::THINGER_STATE state){
-        if(state==iotmp::THINGER_AUTHENTICATED){
-            unsigned connections = 0;
-            pson data;
-            if(client.get_property("connections", data)){
-                connections = data;
-                connections++;
-            }
-            data = connections;
-            if(client.set_property("connections", data, true)){
-                THINGER_LOG("connections updated to: %d", connections);
-            }
-        }
-    });
-
-    client["sum"] = [](iotmp::output& out){
-        out["result"] = 2;
+    // Definir recursos - prueba de diferentes tipos
+    iotmp_client["input_bool"] = [](input& in) {
+        bool value = in["value"];
+        std::cout << "bool: " << (value ? "true" : "false") << "\n";
     };
 
-    // start client
-    client.start();
+    iotmp_client["input_int"] = [](input& in) {
+        int value = in["value"];
+        std::cout << "int: " << value << "\n";
+    };
 
-    // wait for asio workers to complete (receive a signal)
-    thinger::asio::workers.wait();
+    iotmp_client["input_float"] = [](input& in) {
+        float value = in["value"];
+        std::cout << "float: " << value << "\n";
+    };
 
+    iotmp_client["input_double"] = [](input& in) {
+        double value = in["value"];
+        std::cout << "double: " << value << "\n";
+    };
+
+    iotmp_client["input_string"] = [](input& in) {
+        std::string value = in["value"];
+        std::cout << "string: " << value << "\n";
+    };
+
+    iotmp_client["input_multiple"] = [](input& in) {
+        bool b = in["bool_val"];
+        int i = in["int_val"];
+        float f = in["float_val"];
+        std::string s = in["string_val"];
+        std::cout << "multiple: " << b << ", " << i << ", " << f << ", " << s << "\n";
+    };
+
+    // Prueba de input directo (sin campos)
+    iotmp_client["input_direct_bool"] = [](input& in) {
+        bool value = in;
+        std::cout << "direct bool: " << (value ? "true" : "false") << "\n";
+    };
+
+    iotmp_client["input_direct_int"] = [](input& in) {
+        int value = in;
+        std::cout << "direct int: " << value << "\n";
+    };
+
+    iotmp_client["input_direct_float"] = [](input& in) {
+        float value = in;
+        std::cout << "direct float: " << value << "\n";
+    };
+
+    iotmp_client["input_direct_string"] = [](input& in) {
+        std::string value = in;
+        std::cout << "direct string: " << value << "\n";
+    };
+
+    iotmp_client["temperature"] = [](output& out) {
+        static float temp = 20.0f;
+        temp += 0.1f;
+        out["celsius"] = temp;
+        out["fahrenheit"] = temp * 9.0f / 5.0f + 32.0f;
+    };
+
+    iotmp_client["sum"] = [](input& in, output& out) {
+        int a = in["a"];
+        int b = in["b"];
+        out["result"] = a + b;
+    };
+
+    // Inicializar extensiones
+    terminal shell(iotmp_client);
+    std::filesystem::path fs_base_path = "/Users/alvarolb/Desktop";
+    filesystem fs(iotmp_client, fs_base_path);
+    version ver(iotmp_client);
+
+    // Iniciar cliente (arranca workers automáticamente)
+    std::cout << "Starting async client...\n";
+    iotmp_client.start();
+
+    // Esperar señales de cierre (Ctrl+C o SIGTERM)
+    thinger::asio::get_workers().wait();
+
+    std::cout << "Client stopped.\n";
     return 0;
 }

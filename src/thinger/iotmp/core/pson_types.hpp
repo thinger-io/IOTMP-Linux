@@ -1,6 +1,6 @@
 // The MIT License (MIT)
 //
-// Copyright (c) 2020 INTERNET OF THINGER SL
+// Copyright (c) 2017 THINK BIG LABS S.L.
 // Author: alvarolb@gmail.com (Alvaro Luis Bustamante)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,12 +21,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include <thinger/asio/workers.hpp>
-#include <thinger/util/logger.hpp>
-#include "iotmp/client.hpp"
-#include "iotmp/extensions/cmd/cmd.hpp"
-#include "iotmp/extensions/terminal/terminal.hpp"
-#include "iotmp/extensions/proxy/proxy.hpp"
-#include "iotmp/extensions/version/version.hpp"
+#ifndef PSON_TYPES_HPP
+#define PSON_TYPES_HPP
 
-using namespace thinger;
+#include <cstdint>
+
+namespace thinger::iotmp {
+
+    enum class pson_wire_type : uint8_t {
+        unsigned_t = 0,
+        signed_t = 1,
+        floating_t = 2,
+        discrete_t = 3,
+        string_t = 4,
+        bytes_t = 5,
+        map_t = 6,
+        array_t = 7
+    };
+
+}
+
+#endif // PSON_TYPES_HPP

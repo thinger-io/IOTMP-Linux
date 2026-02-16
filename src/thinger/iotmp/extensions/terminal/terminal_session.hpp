@@ -2,39 +2,48 @@
 #define THINGER_IOTMP_TERMINAL_SESSION_HPP
 
 #include "../../client.hpp"
-#include "../streams/stream_session.hpp"
+#include "../../core/iotmp_stream_session.hpp"
+#include <boost/asio/posix/stream_descriptor.hpp>
+#include <queue>
 
-namespace thinger::iotmp{
+namespace thinger::iotmp {
 
-    class terminal_session : public stream_session{
+constexpr size_t TERMINAL_BUFFER_SIZE = 1024;
 
-    public:
+class terminal_session : public stream_session {
 
-        terminal_session(client& client, uint16_t stream_id, std::string session, pson& parameters);
-        ~terminal_session() override;
+public:
+    terminal_session(client& client, uint16_t stream_id, std::string session, json_t& parameters);
+    ~terminal_session() override;
 
-        void start(result_handler handler) override;
-        bool stop() override;
-        void update_params(input& in, output& out);
+    awaitable<exec_result> start() override;
+    bool stop(StopReason reason = StopReason::SERVER_STOP) override;
+    void handle_input(input& in) override;
+    void update_params(input& in, output& out);
 
-    private:
+private:
+    // Coroutine-based implementation
+    awaitable<void> read_loop();
+    awaitable<void> write_loop();
 
-        void write(uint8_t* buffer, size_t size) override;
-        void handle_read();
+    int pid_ = 0;
+    unsigned cols_ = 80;
+    unsigned rows_ = 24;
+    bool running_ = false;
 
-        int pid_ = 0;
-        unsigned cols_ = 80;
-        unsigned rows_ = 60;
+    // Terminal command to use
+    std::string terminal_;
 
-        /// terminal command to be used
-        std::string terminal_;
+    // Stream descriptor for PTY read/write
+    boost::asio::posix::stream_descriptor descriptor_;
 
-        /// stream descriptor for read/write to the term
-        boost::asio::posix::stream_descriptor descriptor_;
+    // Read buffer
+    uint8_t read_buffer_[TERMINAL_BUFFER_SIZE];
 
-        std::vector<uint8_t> read_buffer_;
-
-    };
+    // Write queue with synchronization
+    std::queue<std::string> write_queue_;
+    bool write_in_progress_ = false;
+};
 
 }
 

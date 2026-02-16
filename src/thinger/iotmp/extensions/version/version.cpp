@@ -2,7 +2,7 @@
 
 namespace thinger::iotmp{
 
-    version::version(thinger::iotmp::client& client){
+    version::version(client& client){
 
         client["version"] = [](output& out){
             out["major"] = VERSION_MAJOR;

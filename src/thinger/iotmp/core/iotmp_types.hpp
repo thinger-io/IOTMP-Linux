@@ -1,6 +1,6 @@
 // The MIT License (MIT)
 //
-// Copyright (c) 2020 INTERNET OF THINGER SL
+// Copyright (c) 2017 THINK BIG LABS SL
 // Author: alvarolb@gmail.com (Alvaro Luis Bustamante)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,12 +21,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include <thinger/asio/workers.hpp>
-#include <thinger/util/logger.hpp>
-#include "iotmp/client.hpp"
-#include "iotmp/extensions/cmd/cmd.hpp"
-#include "iotmp/extensions/terminal/terminal.hpp"
-#include "iotmp/extensions/proxy/proxy.hpp"
-#include "iotmp/extensions/version/version.hpp"
+#ifndef THINGER_IOTMP_TYPES_HPP
+#define THINGER_IOTMP_TYPES_HPP
 
-using namespace thinger;
+#include <nlohmann/json.hpp>
+
+namespace thinger::iotmp{
+
+    typedef uint16_t stream_id_t;
+    typedef nlohmann::json json_t;
+
+}
+
+#endif

@@ -1,124 +1,130 @@
 #include "proxy_session.hpp"
-#include "../../../asio/sockets/socket.hpp"
+#include <thinger/asio/sockets/socket.hpp>
+#include <thinger/asio/sockets/tcp_socket.hpp>
+#include <thinger/asio/sockets/ssl_socket.hpp>
 
-namespace thinger::iotmp{
+namespace thinger::iotmp {
 
-    proxy_session::proxy_session(client& client, uint16_t stream_id, std::string session, std::string host,
-                                 uint16_t port, bool secure)
-            : stream_session(client, stream_id, std::move(session)),
-              host_(std::move(host)),
-              port_(port)
-    {
-        //THINGER_LOG("[%u] created proxy session: %s:%u", stream_id_, host_.c_str(), port_);
-        if(secure){
-            auto ssl_context = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23_client);
-            ssl_context->set_default_verify_paths();
-            socket_ = std::make_shared<thinger::asio::ssl_socket>("proxy", client.get_io_context(), ssl_context);
-        }else{
-            socket_ = std::make_shared<thinger::asio::tcp_socket>("proxy", client.get_io_context());
+proxy_session::proxy_session(client& client, uint16_t stream_id, std::string session,
+                             std::string host, uint16_t port, bool secure)
+    : stream_session(client, stream_id, std::move(session)),
+      host_(std::move(host)),
+      port_(port)
+{
+    // Create socket based on security setting
+    auto& io = client.get_io_context();
+    if(secure) {
+        auto ssl_context = std::make_shared<boost::asio::ssl::context>(
+            boost::asio::ssl::context::sslv23_client);
+        ssl_context->set_default_verify_paths();
+        socket_ = std::make_shared<thinger::asio::ssl_socket>("proxy", io, ssl_context);
+    } else {
+        socket_ = std::make_shared<thinger::asio::tcp_socket>("proxy", io);
+    }
+}
+
+proxy_session::~proxy_session() {
+    THINGER_LOG("[{}] releasing tcp proxy session", stream_id_);
+}
+
+awaitable<exec_result> proxy_session::start() {
+    THINGER_LOG("[{}] starting proxy session: {}:{}", stream_id_, host_, port_);
+
+    try {
+        co_await socket_->connect(host_, std::to_string(port_), std::chrono::seconds(10));
+        THINGER_LOG("[{}] target proxy connected: {}:{}", stream_id_, host_, port_);
+
+        running_ = true;
+
+        // Launch read loop
+        co_spawn(socket_->get_io_context(), read_loop(), detached);
+
+        co_return true;
+
+    } catch(const std::exception& e) {
+        THINGER_LOG_ERROR("[{}] error on proxy connection: {}:{} ({})",
+                         stream_id_, host_, port_, e.what());
+        co_return exec_result{false, e.what()};
+    }
+}
+
+bool proxy_session::stop(StopReason reason) {
+    running_ = false;
+    if(socket_ && socket_->is_open()) {
+        socket_->close();
+    }
+    return true;
+}
+
+void proxy_session::handle_input(input& in) {
+    if(!running_) return;
+
+    // Proxy expects binary data
+    if(!in->is_binary()) return;
+
+    auto& binary = in->get_binary();
+    if(binary.empty()) return;
+
+    // Queue data for writing
+    write_queue_.emplace(reinterpret_cast<const char*>(binary.data()), binary.size());
+
+    // Start write loop if not already running
+    if(!write_in_progress_) {
+        write_in_progress_ = true;
+        co_spawn(socket_->get_io_context(), write_loop(), detached);
+    }
+}
+
+awaitable<void> proxy_session::read_loop() {
+    auto self = shared_from_this();
+
+    while(running_ && socket_->is_open()) {
+        try {
+            auto bytes = co_await socket_->read_some(read_buffer_, PROXY_BUFFER_SIZE);
+
+            if(bytes > 0) {
+                increase_received(bytes);
+
+                if(!client_.stream_resource(stream_id_, read_buffer_, bytes)) {
+                    THINGER_LOG_ERROR("[{}] cannot send proxy data for stream id", stream_id_);
+                    stop();
+                    break;
+                }
+            }
+
+        } catch(const boost::system::system_error& e) {
+            if(e.code() != boost::asio::error::operation_aborted) {
+                THINGER_LOG_ERROR("[{}] error reading from proxy after {}: {}",
+                                 stream_id_, last_usage().count(), e.what());
+                stop();
+            }
+            break;
+        }
+    }
+}
+
+awaitable<void> proxy_session::write_loop() {
+    auto self = shared_from_this();
+
+    while(running_ && !write_queue_.empty() && socket_->is_open()) {
+        auto data = std::move(write_queue_.front());
+        write_queue_.pop();
+
+        try {
+            co_await socket_->write(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+            increase_sent(data.size());
+
+        } catch(const boost::system::system_error& e) {
+            if(e.code() != boost::asio::error::operation_aborted) {
+                THINGER_LOG_ERROR("[{}] error writing to proxy: {} ({})",
+                                 stream_id_, e.code().value(), e.what());
+                stop();
+            }
+            break;
         }
     }
 
-    proxy_session::~proxy_session(){
-        THINGER_LOG("[%u] releasing tcp proxy session", stream_id_);
-    }
+    write_in_progress_ = false;
+}
 
-    void proxy_session::start(result_handler handler){
-        THINGER_LOG("[%u] starting proxy session: %s:%u", stream_id_, host_.c_str(), port_);
-
-        socket_->connect(host_,
-                        std::to_string(port_),
-                        std::chrono::seconds(10),
-                        [this, shelf = shared_from_this(), handler = std::move(handler)](const boost::system::error_code & ec){
-                            if(!ec){
-                                THINGER_LOG("[%u] target proxy connected: %s:%u", stream_id_, host_.c_str(), port_);
-                                handler(true);
-                                // handle write (if any data is pending on buffer)
-                                handle_write();
-                                // handle read
-                                handle_read();
-                            }else{
-                                THINGER_LOG_ERROR("[%u] error on proxy connection: %s:%u (%s)", stream_id_, host_.c_str(), port_, ec.message().c_str());
-                                handler(false);
-                            }
-                        });
-    }
-
-    bool proxy_session::stop(){
-        if(socket_->is_open()) socket_->cancel();
-        return true;
-    }
-
-    void proxy_session::write(uint8_t* buffer, size_t size){
-        if(!size) return;
-
-        // add data to buffer
-        write_buffer_.emplace(std::string{reinterpret_cast<const char*>(buffer), size});
-
-        // handle buffer writes
-        handle_write();
-    }
-
-    void proxy_session::handle_write(){
-        // ensure there is no any pending write, there is data to write, and the socket is open
-        if(writing_ || write_buffer_.empty() || !socket_->is_open()) return;
-
-        // mark proxy as writing
-        writing_ = true;
-
-        // get queue data
-        const auto& front = write_buffer_.front();
-
-        // write to socket
-        //THINGER_LOG("writing on target proxy buffer: %zu bytes", front.size());
-        socket_->async_write(front, [this, self = shared_from_this()](const boost::system::error_code& ec, std::size_t bytes_transferred){
-            // error while writing to target connection
-            if(ec){
-                if(ec!=boost::asio::error::operation_aborted){
-                    THINGER_LOG_ERROR("[%u] error while writing on proxy: %d (%s)", stream_id_, ec.value(), ec.message().c_str());
-                    stop();
-                }
-                return;
-            }
-
-            increase_sent(bytes_transferred);
-            //THINGER_LOG("wrote %zu bytes to %s:%u (%u) bytes", bytes_transferred, host_.c_str(), port_, stream_id_);
-
-            // mark proxy as not writing
-            writing_ = false;
-
-            // there is pending data on queue
-            if(!write_buffer_.empty()){
-                // remove data from queue
-                write_buffer_.pop();
-
-                // handle write again
-                handle_write();
-            }
-        });
-    }
-
-    void proxy_session::handle_read(){
-        //THINGER_LOG("reading data from tcp proxy");
-        socket_->async_read_some((uint8_t*)buffer_, READ_BUFFER_SIZE, [this, self = shared_from_this()](const boost::system::error_code& ec, std::size_t bytes_transferred){
-            if(ec){
-                if(ec!=boost::asio::error::operation_aborted){
-                    THINGER_LOG_ERROR("[%u] error while reading from proxy after %lld (%s)", stream_id_, last_usage().count(), ec.message().c_str());
-                    stop();
-                }
-                return;
-            }
-            //THINGER_LOG("read %zu bytes from %s:%u (%u) bytes", bytes_transferred, host_.c_str(), port_, stream_id_);
-            if(bytes_transferred){
-                increase_received(bytes_transferred);
-                auto result = client_.stream_resource(stream_id_, reinterpret_cast<const uint8_t*>(&buffer_[0]), bytes_transferred);
-                if(!result) {
-                    THINGER_LOG_ERROR("[%u] cannot send proxy data for stream id", stream_id_);
-                    stop();
-                    return;
-                }
-            }
-            handle_read();
-        });
-    }
 }
