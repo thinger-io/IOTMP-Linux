@@ -175,19 +175,14 @@ else()
   endif()
 
   # Core and extension files
-  file(GLOB CORE_FILES
+  file(GLOB_RECURSE SOURCE_FILES
       "src/thinger/iotmp/core/*.cpp"
-  )
-  file(GLOB EXTENSION_FILES
-      "src/thinger/iotmp/extensions/fs/*.cpp"
-      "src/thinger/iotmp/extensions/terminal/*.cpp"
-      "src/thinger/iotmp/extensions/version/*.cpp"
+      "src/thinger/iotmp/extensions/*.cpp"
   )
 
   add_executable(${PROJECT_NAME}
       src/main.cpp
-      ${CORE_FILES}
-      ${EXTENSION_FILES}
+      ${SOURCE_FILES}
   )
 
   target_link_libraries(${PROJECT_NAME} PRIVATE

@@ -12,6 +12,7 @@
 #include "thinger/iotmp/client.hpp"
 #include "thinger/iotmp/extensions/fs/filesystem.hpp"
 #include "thinger/iotmp/extensions/terminal/terminal.hpp"
+#include "thinger/iotmp/extensions/proxy/proxy.hpp"
 #include "thinger/iotmp/extensions/version/version.hpp"
 
 using namespace thinger::iotmp;
@@ -152,6 +153,7 @@ int main(int argc, char* argv[]) {
     terminal shell(iotmp_client);
     std::filesystem::path fs_base_path = "/Users/alvarolb/Desktop";
     filesystem fs(iotmp_client, fs_base_path);
+    proxy tcp_proxy(iotmp_client);
     version ver(iotmp_client);
 
     // Iniciar cliente (arranca workers automáticamente)
