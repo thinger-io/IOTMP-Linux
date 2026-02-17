@@ -25,13 +25,10 @@
 #define THINGER_IOTMP_LOGGER_HPP
 
 #include "iotmp_message.hpp"
+#include <thinger/util/logger.hpp>
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
-
-#ifndef THINGER_LOG_TAG
-#define THINGER_LOG_TAG(tag, ...) ((void)0)
-#endif
 
 namespace thinger::iotmp {
 
