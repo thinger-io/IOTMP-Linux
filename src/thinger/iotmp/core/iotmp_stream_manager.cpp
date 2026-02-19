@@ -55,21 +55,30 @@ void stream_manager::start(uint16_t stream_id, json_t& path_parameters,
     // Launch coroutine to start the session
     co_spawn(client_.get_io_context(),
         [this, stream_id, session, handler = std::move(handler)]() mutable -> awaitable<void> {
-            // Start session using coroutine
-            auto result = co_await session->start();
+            try {
+                // Start session using coroutine
+                auto result = co_await session->start();
 
-            if(result) {
-                // Store session (as weak ptr)
-                sessions_.emplace(stream_id, session);
+                if(result) {
+                    // Store session (as weak ptr)
+                    sessions_.emplace(stream_id, session);
 
-                // Set session listener to clean-up once done
-                session->set_on_end_listener([this, stream_id]() {
-                    stop(stream_id, [](exec_result&&) {});
-                });
+                    // Set session listener to clean-up once done
+                    session->set_on_end_listener([this, stream_id]() {
+                        stop(stream_id, [](exec_result&&) {});
+                    });
+                }
+
+                // Call the handler with the result
+                handler(std::move(result));
+            } catch(const std::exception& e) {
+                LOG_ERROR("[{}] stream session error: {}", stream_id, e.what());
+                try {
+                    handler(exec_result{false, e.what()});
+                } catch(const std::exception& e2) {
+                    LOG_ERROR("[{}] failed to send error response: {}", stream_id, e2.what());
+                }
             }
-
-            // Call the handler with the result
-            handler(std::move(result));
         },
         detached);
 }

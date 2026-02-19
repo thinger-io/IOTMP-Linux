@@ -50,9 +50,13 @@ namespace thinger::iotmp {
 
         void encode(iotmp_message& message) {
             for(const auto& [field, value] : message.get_fields()) {
-                if(value.is_number()) {
+                if(value.is_number_unsigned()) {
                     encode_field(message::wire_type::varint, field);
-                    pb_write_varint(uint64_t(value));
+                    pb_write_varint(value.get<uint64_t>());
+                } else if(value.is_number_integer()) {
+                    auto signed_val = value.get<int64_t>();
+                    encode_field(message::wire_type::varint, field);
+                    pb_write_varint(signed_val >= 0 ? static_cast<uint64_t>(signed_val) : 0);
                 } else {
                     encode_field(message::wire_type::pson_v2, field);
                     encode_pson_value(value);

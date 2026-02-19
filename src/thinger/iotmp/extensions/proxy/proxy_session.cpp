@@ -99,6 +99,11 @@ awaitable<void> proxy_session::read_loop() {
                 stop();
             }
             break;
+        } catch(const std::exception& e) {
+            THINGER_LOG_ERROR("[{}] unexpected error in proxy read_loop: {}",
+                             stream_id_, e.what());
+            stop();
+            break;
         }
     }
 }
@@ -120,6 +125,11 @@ awaitable<void> proxy_session::write_loop() {
                                  stream_id_, e.code().value(), e.what());
                 stop();
             }
+            break;
+        } catch(const std::exception& e) {
+            THINGER_LOG_ERROR("[{}] unexpected error in proxy write_loop: {}",
+                             stream_id_, e.what());
+            stop();
             break;
         }
     }

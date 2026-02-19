@@ -11,7 +11,7 @@ namespace thinger::iotmp{
 
     std::shared_ptr<stream_session>
     proxy::create_session(client& client, uint16_t stream_id, std::string session, json_t& parameters){
-        //THINGER_LOG("[%u] create session called", stream_id);
+        THINGER_LOG("[{}] proxy create_session params type={} value={}", stream_id, parameters.type_name(), parameters.dump());
         std::string protocol = get_value(parameters, "protocol", empty::string);
         std::string host     = get_value(parameters, "address", empty::string);
         uint16_t    port     = get_value(parameters, "port", (uint16_t)0);
