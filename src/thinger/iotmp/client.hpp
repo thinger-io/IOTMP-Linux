@@ -191,16 +191,18 @@ namespace thinger::iotmp {
             uint16_t request_stream_id = request.get_stream_id();
             while(true) {
                 auto response = co_await read_message();
-                uint16_t response_stream_id = response.get_stream_id();
+                if(!response) co_return false;
+
+                uint16_t response_stream_id = response->get_stream_id();
 
                 if(request_stream_id == response_stream_id &&
-                   response.get_message_type() <= message::type::ERROR) {
-                    if(payload && response.has_field(message::field::PAYLOAD)) {
-                        payload->swap(response[message::field::PAYLOAD]);
+                   response->get_message_type() <= message::type::ERROR) {
+                    if(payload && response->has_field(message::field::PAYLOAD)) {
+                        payload->swap((*response)[message::field::PAYLOAD]);
                     }
-                    co_return response.get_message_type() == message::type::OK;
+                    co_return response->get_message_type() == message::type::OK;
                 } else {
-                    handle_message(response);
+                    handle_message(*response);
                 }
             }
         }
@@ -210,7 +212,7 @@ namespace thinger::iotmp {
             if(wait_ack && message.get_stream_id() == 0) {
                 message.set_random_stream_id();
             }
-            co_await write_message(message);
+            if(!co_await write_message(message)) co_return false;
             if(!wait_ack) co_return true;
             co_return co_await wait_response(message);
         }
@@ -220,7 +222,7 @@ namespace thinger::iotmp {
             if(message.get_stream_id() == 0) {
                 message.set_random_stream_id();
             }
-            co_await write_message(message);
+            if(!co_await write_message(message)) co_return false;
             co_return co_await wait_response(message, &response_payload);
         }
 
@@ -362,15 +364,13 @@ namespace thinger::iotmp {
         // Main coroutine - handles connection, reconnection, reading
         awaitable<void> run_loop() {
             while(running_) {
-                try {
-                    co_await connect();
-
-                    if(!co_await authenticate()) {
-                        LOG_ERROR("Authentication failed");
-                        co_await delay(RECONNECT_DELAY);
-                        continue;
-                    }
-
+                auto ec = co_await connect();
+                if(ec) {
+                    notify_state(client_state::CONNECTION_ERROR, ec.message());
+                    LOG_ERROR("Connection error: {}", ec.message());
+                } else if(!co_await authenticate()) {
+                    LOG_ERROR("Authentication failed");
+                } else {
                     LOG_INFO("Authenticated successfully!");
                     connected_ = true;
 
@@ -387,12 +387,6 @@ namespace thinger::iotmp {
 
                     // Message read loop
                     co_await read_loop();
-
-                } catch (const boost::system::system_error& e) {
-                    notify_state(client_state::CONNECTION_ERROR, e.what());
-                    LOG_ERROR("Connection error: {}", e.what());
-                } catch (const std::exception& e) {
-                    LOG_ERROR("Error: {}", e.what());
                 }
 
                 connected_ = false;
@@ -408,18 +402,20 @@ namespace thinger::iotmp {
         }
 
         // Connect to server
-        awaitable<void> connect() {
+        awaitable<boost::system::error_code> connect() {
             LOG_INFO("Connecting to {}:{}...", host_, port_);
             notify_state(client_state::CONNECTING);
 
             if(transport_ == transport_type::WEBSOCKET) {
                 // WebSocket needs special handling: SSL connect + HTTP upgrade
-                co_await websocket_connect();
+                auto ec = co_await websocket_connect();
+                if(ec) co_return ec;
             } else {
                 // Create socket based on transport type (runtime dispatch)
                 socket_ = create_socket();
                 // Connect (thinger-http socket handles handshake internally if needed)
-                co_await socket_->connect(host_, std::to_string(port_), CONNECT_TIMEOUT);
+                auto ec = co_await socket_->connect(host_, std::to_string(port_), CONNECT_TIMEOUT);
+                if(ec) co_return ec;
             }
 
             // Initialize timers using socket's io_context (ensures same thread)
@@ -429,10 +425,11 @@ namespace thinger::iotmp {
 
             notify_state(client_state::CONNECTED);
             LOG_INFO("Connected!");
+            co_return boost::system::error_code{};
         }
 
         // WebSocket connection using thinger-http pool_client (async)
-        awaitable<void> websocket_connect() {
+        awaitable<boost::system::error_code> websocket_connect() {
             // Build WebSocket URL
             std::string ws_url = "wss://" + host_ + ":" + std::to_string(port_) + "/iotmp";
 
@@ -441,13 +438,14 @@ namespace thinger::iotmp {
             auto ws_client = co_await http_client.request(ws_url).protocol("iotmp").websocket();
 
             if(!ws_client) {
-                throw std::runtime_error("WebSocket upgrade failed");
+                co_return boost::asio::error::connection_refused;
             }
 
             // Release the underlying websocket for direct use
             socket_ = ws_client->release_socket();
 
             LOG_DEBUG("WebSocket upgrade successful");
+            co_return boost::system::error_code{};
         }
 
         // Socket factory - runtime dispatch based on transport type
@@ -482,10 +480,17 @@ namespace thinger::iotmp {
             connect_msg.set_random_stream_id();
             connect_msg[message::field::PAYLOAD] = json_t::array({username_, device_id_, device_password_});
 
-            co_await write_message(connect_msg);
+            if(!co_await write_message(connect_msg)) {
+                notify_state(client_state::AUTH_FAILED);
+                co_return false;
+            }
             auto response = co_await read_message();
+            if(!response) {
+                notify_state(client_state::AUTH_FAILED);
+                co_return false;
+            }
 
-            bool success = response.get_message_type() == message::type::OK;
+            bool success = response->get_message_type() == message::type::OK;
             notify_state(success ? client_state::AUTHENTICATED : client_state::AUTH_FAILED);
             co_return success;
         }
@@ -501,7 +506,7 @@ namespace thinger::iotmp {
                 request[message::field::PARAMETERS].swap(event.get_params());
 
                 // Send start stream request
-                co_await write_message(request);
+                if(!co_await write_message(request)) continue;
 
                 // Wait for response
                 json_t response_data;
@@ -533,31 +538,38 @@ namespace thinger::iotmp {
         awaitable<void> read_loop() {
             while(running_ && connected_) {
                 auto message = co_await read_message();
-                handle_message(message);
+                if(!message) break;
+                handle_message(*message);
             }
         }
 
-        // Read a complete message
-        awaitable<iotmp_message> read_message() {
+        // Read a complete message (returns nullopt on connection error)
+        awaitable<std::optional<iotmp_message>> read_message() {
             // Read header: type (1 byte) + size (varint)
             uint8_t type_byte;
-            co_await socket_->read(&type_byte, 1);
+            {
+                auto [ec, n] = co_await socket_->read(&type_byte, 1);
+                if(ec) co_return std::nullopt;
+            }
 
-            uint32_t size = co_await read_varint();
+            auto size = co_await read_varint();
+            if(!size) co_return std::nullopt;
+
+            if(*size > MAX_MESSAGE_SIZE) {
+                LOG_ERROR("Message too large: {} bytes", *size);
+                co_return std::nullopt;
+            }
 
             iotmp_message message(static_cast<message::type>(type_byte));
 
-            if(size > 0) {
-                if(size > MAX_MESSAGE_SIZE) {
-                    throw std::runtime_error("Message too large");
-                }
+            if(*size > 0) {
+                read_buffer_.resize(*size);
+                auto [ec, n] = co_await socket_->read(read_buffer_.data(), *size);
+                if(ec) co_return std::nullopt;
 
-                read_buffer_.resize(size);
-                co_await socket_->read(read_buffer_.data(), size);
-
-                memory_reader reader(read_buffer_.data(), size);
+                memory_reader reader(read_buffer_.data(), *size);
                 iotmp_decoder<memory_reader> decoder(reader);
-                decoder.decode(message, size);
+                decoder.decode(message, *size);
             }
 
             if(message.get_message_type() != message::STREAM_DATA) {
@@ -567,18 +579,20 @@ namespace thinger::iotmp {
             co_return message;
         }
 
-        // Read varint from socket
-        awaitable<uint32_t> read_varint() {
+        // Read varint from socket (returns nullopt on error)
+        awaitable<std::optional<uint32_t>> read_varint() {
             uint32_t value = 0;
             uint8_t bit_pos = 0;
             uint8_t byte;
 
             do {
-                co_await socket_->read(&byte, 1);
+                auto [ec, n] = co_await socket_->read(&byte, 1);
+                if(ec) co_return std::nullopt;
                 value |= static_cast<uint32_t>(byte & 0x7F) << bit_pos;
                 bit_pos += 7;
                 if(bit_pos >= 32) {
-                    throw std::runtime_error("Varint too large");
+                    LOG_ERROR("Varint too large");
+                    co_return std::nullopt;
                 }
             } while(byte & 0x80);
 
@@ -605,10 +619,9 @@ namespace thinger::iotmp {
                 auto data = std::move(write_queue_.front());
                 write_queue_.pop();
 
-                try {
-                    co_await socket_->write(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-                } catch(const std::exception& e) {
-                    LOG_ERROR("Write error: {}", e.what());
+                auto [ec, bytes] = co_await socket_->write(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+                if(ec) {
+                    LOG_ERROR("Write error: {}", ec.message());
                     break;
                 }
             }
@@ -616,13 +629,18 @@ namespace thinger::iotmp {
         }
 
         // Write message and wait for completion (coroutine)
-        awaitable<void> write_message(iotmp_message& message) {
+        awaitable<bool> write_message(iotmp_message& message) {
             if(message.get_message_type() != message::STREAM_DATA) {
                 message_logger::log_outgoing(message);
             }
 
             auto encoded = encode_message(message);
-            co_await socket_->write(reinterpret_cast<const uint8_t*>(encoded.data()), encoded.size());
+            auto [ec, bytes] = co_await socket_->write(reinterpret_cast<const uint8_t*>(encoded.data()), encoded.size());
+            if(ec) {
+                LOG_ERROR("Write error: {}", ec.message());
+                co_return false;
+            }
+            co_return true;
         }
 
         // Keep-alive loop
@@ -676,7 +694,7 @@ namespace thinger::iotmp {
             // Use current thread's io_context (works even without socket)
             auto& io = thinger::asio::get_workers().get_thread_io_context();
             asio::steady_timer timer(io, duration);
-            co_await timer.async_wait(use_awaitable);
+            auto [ec] = co_await timer.async_wait(use_nothrow_awaitable);
         }
 
         // Handle received message

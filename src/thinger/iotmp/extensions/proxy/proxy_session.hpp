@@ -22,7 +22,6 @@ public:
     void handle_input(input& in) override;
 
 private:
-    // Coroutine-based implementation
     awaitable<void> read_loop();
     awaitable<void> write_loop();
 

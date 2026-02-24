@@ -66,140 +66,138 @@ namespace thinger::iotmp{
             return;
         }
 
-        try {
-            // Use centralized path resolution and validation
-            std::filesystem::path target_path;
-            if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
-                return; // Error already set by resolve_and_validate_path
-            }
+        // Use centralized path resolution and validation
+        std::filesystem::path target_path;
+        if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
+            return; // Error already set by resolve_and_validate_path
+        }
 
-            // Check if it's a directory or file
-            if(std::filesystem::is_directory(target_path)){
-                // It's a directory, list contents
-                handle_list(in, out);
-            } else if(std::filesystem::is_regular_file(target_path)){
-                // It's a file, download it
-                handle_download(in, out);
-            } else {
-                out.set_error(400, "Path is neither a regular file nor a directory");
-            }
+        std::error_code ec;
+        auto status = std::filesystem::status(target_path, ec);
+        if(ec) {
+            out.set_error(ec.message().c_str());
+            return;
+        }
 
-        } catch(const std::exception& e){
-            out.set_error(e.what());
-            THINGER_LOG_ERROR("error in handle_get: {}", e.what());
+        // Check if it's a directory or file
+        if(std::filesystem::is_directory(status)){
+            handle_list(in, out);
+        } else if(std::filesystem::is_regular_file(status)){
+            handle_download(in, out);
+        } else {
+            out.set_error(400, "Path is neither a regular file nor a directory");
         }
     }
 
     void filesystem::handle_list(input& in, output& out){
-        try {
-            // Get parameters from PARAMETERS field (not PAYLOAD)
-            json_t& params = in.get_params();
-            bool include_hidden = get_value(params, "include_hidden", false);
-            bool recursive = get_value(params, "recursive", false);
+        // Get parameters from PARAMETERS field (not PAYLOAD)
+        json_t& params = in.get_params();
+        bool include_hidden = get_value(params, "include_hidden", false);
 
-            // Use centralized path resolution and validation
-            std::filesystem::path target_path;
-            if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
-                return; // Error already set by resolve_and_validate_path
+        // Use centralized path resolution and validation
+        std::filesystem::path target_path;
+        if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
+            return; // Error already set by resolve_and_validate_path
+        }
+
+        std::error_code ec;
+        if(!std::filesystem::is_directory(target_path, ec)){
+            out.set_error(400, "Path is not a directory");
+            return;
+        }
+
+        // List directory entries as a JSON array
+        out = json_t::array();
+
+        for(const auto& entry : std::filesystem::directory_iterator(target_path, ec)){
+            std::error_code entry_ec;
+            std::string filename = entry.path().filename().string();
+
+            // Skip hidden files if not requested
+            if(!include_hidden && !filename.empty() && filename[0] == '.') continue;
+
+            // Get file info
+            auto status = entry.status(entry_ec);
+            if(entry_ec) continue;
+
+            auto ftime = std::filesystem::last_write_time(entry, entry_ec);
+            if(entry_ec) continue;
+
+            auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now()
+            );
+            auto time_t_val = std::chrono::system_clock::to_time_t(sctp);
+
+            // Get file size
+            uint64_t file_size = 0;
+            if(std::filesystem::is_regular_file(status)){
+                file_size = std::filesystem::file_size(entry, entry_ec);
+                if(entry_ec) file_size = 0;
             }
 
-            if(!std::filesystem::is_directory(target_path)){
-                out.set_error(400, "Path is not a directory");
-                return;
-            }
+            // Create entry object with all fields using initializer list
+            out.payload().push_back({
+                {"name", filename},
+                {"type", get_file_type(status)},
+                {"size", file_size},
+                {"mode", format_permissions(status.permissions())},
+                {"modified", time_t_val}
+            });
+        }
 
-            // List directory entries as a JSON array
-            out = json_t::array();
-
-            for(const auto& entry : std::filesystem::directory_iterator(target_path)){
-                try {
-                    std::string filename = entry.path().filename().string();
-
-                    // Skip hidden files if not requested
-                    if(!include_hidden && filename[0] == '.') continue;
-
-                    // Get file info
-                    auto status = entry.status();
-                    auto ftime = std::filesystem::last_write_time(entry);
-                    auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-                        ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now()
-                    );
-                    auto time_t_val = std::chrono::system_clock::to_time_t(sctp);
-
-                    // Get file size
-                    uint64_t file_size = 0;
-                    if(std::filesystem::is_regular_file(status)){
-                        file_size = std::filesystem::file_size(entry);
-                    }
-
-                    // Create entry object with all fields using initializer list
-                    out.payload().push_back({
-                        {"name", filename},
-                        {"type", get_file_type(status)},
-                        {"size", file_size},
-                        {"mode", format_permissions(status.permissions())},
-                        {"modified", time_t_val}
-                    });
-
-                } catch(const std::exception& e){
-                    THINGER_LOG_ERROR("error processing entry: {}", e.what());
-                }
-            }
-
-        } catch(const std::exception& e){
-            out.set_error(e.what());
-            THINGER_LOG_ERROR("error in handle_list: {}", e.what());
+        if(ec) {
+            out.set_error(ec.message().c_str());
+            THINGER_LOG_ERROR("error in handle_list: {}", ec.message());
         }
     }
 
     void filesystem::handle_download(input& in, output& out){
-        try {
-            std::filesystem::path target_path;
-            if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
-                return; // Error already set in output
-            }
-            
-            if(!std::filesystem::is_regular_file(target_path)){
-                out.set_error(400, "Not a regular file");
-                return;
-            }
-            
-            size_t file_size = std::filesystem::file_size(target_path);
-            
-            // Check file size limit
-            if(file_size > MAX_INLINE_FILE_SIZE){
-                out.set_error(413, "File too large for inline transfer");
-                out["size"] = (uint64_t)file_size;
-                out["max_size"] = (uint64_t)MAX_INLINE_FILE_SIZE;
-                return;
-            }
-            
-            // Read file content
-            std::ifstream file(target_path, std::ios::binary);
-            if(!file.is_open()){
-                out.set_error("Failed to open file");
-                return;
-            }
-            
-            // Read file into buffer
-            std::vector<uint8_t> buffer(file_size);
-            file.read(reinterpret_cast<char*>(buffer.data()), file_size);
-            
-            if(!file.good()){
-                out.set_error("Failed to read file");
-                return;
-            }
-
-            // Return file content as bytes directly
-            json_t& data = out;
-            data = json_t::binary({buffer.begin(), buffer.end()});
-
-            THINGER_LOG("inline file transfer: {} ({} bytes)", target_path.filename().string(), file_size);
-
-        } catch(const std::exception& e){
-            out.set_error(e.what());
-            THINGER_LOG_ERROR("error in handle_get: {}", e.what());
+        std::filesystem::path target_path;
+        if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
+            return; // Error already set in output
         }
+
+        std::error_code ec;
+        if(!std::filesystem::is_regular_file(target_path, ec)){
+            out.set_error(400, "Not a regular file");
+            return;
+        }
+
+        auto file_size = std::filesystem::file_size(target_path, ec);
+        if(ec) {
+            out.set_error(ec.message().c_str());
+            return;
+        }
+
+        // Check file size limit
+        if(file_size > MAX_INLINE_FILE_SIZE){
+            out.set_error(413, "File too large for inline transfer");
+            out["size"] = (uint64_t)file_size;
+            out["max_size"] = (uint64_t)MAX_INLINE_FILE_SIZE;
+            return;
+        }
+
+        // Read file content
+        std::ifstream file(target_path, std::ios::binary);
+        if(!file.is_open()){
+            out.set_error("Failed to open file");
+            return;
+        }
+
+        // Read file into buffer
+        std::vector<uint8_t> buffer(file_size);
+        file.read(reinterpret_cast<char*>(buffer.data()), file_size);
+
+        if(!file.good()){
+            out.set_error("Failed to read file");
+            return;
+        }
+
+        // Return file content as bytes directly
+        json_t& data = out;
+        data = json_t::binary({buffer.begin(), buffer.end()});
+
+        THINGER_LOG("inline file transfer: {} ({} bytes)", target_path.filename().string(), file_size);
     }
     
     void filesystem::handle_put(input& in, output& out){
@@ -212,133 +210,132 @@ namespace thinger::iotmp{
             return;
         }
 
-        try {
-            // Get parameters from PARAMETERS field
-            json_t& params = in.get_params();
-            
-            // First check if this is a directory creation (path ends with /)
-            // We need to peek at the path to determine this
-            std::string path_str = in.path("path", "");
-            bool is_directory = !path_str.empty() && path_str.back() == '/';
-            
-            // Use centralized path resolution and validation
-            // Don't check if path exists yet - we may be creating it
-            std::filesystem::path target_path;
-            if(!resolve_and_validate_path(in, out, target_path, "path", false)) {
-                return; // Error already set by resolve_and_validate_path
-            }
+        // Get parameters from PARAMETERS field
+        json_t& params = in.get_params();
 
-            // Check if data is provided in PAYLOAD (bytes directly, not wrapped)
-            json_t& payload = in;
-            size_t data_size = 0;
-            const uint8_t* data = nullptr;
-            bool has_data = false;
+        // First check if this is a directory creation (path ends with /)
+        // We need to peek at the path to determine this
+        std::string path_str = in.path("path", "");
+        bool is_directory = !path_str.empty() && path_str.back() == '/';
 
-            if(payload.is_binary()){
-                // Get the bytes data directly from payload
-                auto& binary = payload.get_binary();
-                data = binary.data();
-                data_size = binary.size();
-                has_data = (data && data_size > 0);
+        // Use centralized path resolution and validation
+        // Don't check if path exists yet - we may be creating it
+        std::filesystem::path target_path;
+        if(!resolve_and_validate_path(in, out, target_path, "path", false)) {
+            return; // Error already set by resolve_and_validate_path
+        }
 
-                // Check size limit for inline transfers
-                if(data_size > MAX_INLINE_FILE_SIZE){
-                    out.set_error(413, "File too large for inline transfer");
-                    out["size"] = (uint64_t)data_size;
-                    out["max_size"] = (uint64_t)MAX_INLINE_FILE_SIZE;
-                    return;
-                }
+        // Check if data is provided in PAYLOAD (bytes directly, not wrapped)
+        json_t& payload = in;
+        size_t data_size = 0;
+        const uint8_t* data = nullptr;
+
+        if(payload.is_binary()){
+            // Get the bytes data directly from payload
+            auto& binary = payload.get_binary();
+            data = binary.data();
+            data_size = binary.size();
+
+            // Check size limit for inline transfers
+            if(data_size > MAX_INLINE_FILE_SIZE){
+                out.set_error(413, "File too large for inline transfer");
+                out["size"] = (uint64_t)data_size;
+                out["max_size"] = (uint64_t)MAX_INLINE_FILE_SIZE;
+                return;
             }
-            
-            // Check overwrite policy from parameters - default is true (standard PUT behavior)
-            // Client should explicitly set overwrite=false for safe creation
-            bool overwrite = params["overwrite"].is_null() ? true : (bool)params["overwrite"];
-            
-            bool file_exists = std::filesystem::exists(target_path);
-            
-            if(file_exists){
-                if(is_directory){
-                    if(std::filesystem::is_directory(target_path)){
-                        // Directory already exists, this is OK
-                        out["success"] = true;
-                        out["path"] = target_path.string().c_str();
-                        out["type"] = "directory";
-                        out["message"] = "Directory already exists";
-                        return;
-                    }
-                    out.set_error(409, "A file exists at this path");
-                    return;
-                }
-                
-                // For files: check if overwrite is allowed
-                if(!overwrite){
-                    out.set_error(409, "File already exists (overwrite=false)");
-                    return;
-                }
-            }
-            
+        }
+
+        // Check overwrite policy from parameters - default is true (standard PUT behavior)
+        // Client should explicitly set overwrite=false for safe creation
+        bool overwrite = params["overwrite"].is_null() ? true : (bool)params["overwrite"];
+
+        std::error_code ec;
+        bool file_exists = std::filesystem::exists(target_path, ec);
+
+        if(file_exists){
             if(is_directory){
-                // Create directory
-                if(std::filesystem::create_directories(target_path)){
-                    THINGER_LOG("created directory: {}", target_path.string());
-                } else {
-                    THINGER_LOG("directory already exists: {}", target_path.string());
-                }
-                
-                out["success"] = true;
-                out["path"] = target_path.string().c_str();
-                out["type"] = "directory";
-                return;
-            }
-            
-            // Create parent directories if needed
-            std::filesystem::create_directories(target_path.parent_path());
-            
-            // Write the file
-            std::ofstream file(target_path, std::ios::binary | std::ios::trunc);
-            if(!file.is_open()){
-                out.set_error("Failed to create file");
-                return;
-            }
-            
-            // Write the data if any
-            if(data && data_size > 0){
-                file.write(reinterpret_cast<const char*>(data), data_size);
-                
-                if(!file.good()){
-                    out.set_error("Failed to write file");
-                    file.close();
-                    // Try to clean up the partial file
-                    std::filesystem::remove(target_path);
+                if(std::filesystem::is_directory(target_path, ec)){
+                    // Directory already exists, this is OK
+                    out["success"] = true;
+                    out["path"] = target_path.string().c_str();
+                    out["type"] = "directory";
+                    out["message"] = "Directory already exists";
                     return;
                 }
+                out.set_error(409, "A file exists at this path");
+                return;
             }
-            
-            file.close();
-            
-            // Return success
+
+            // For files: check if overwrite is allowed
+            if(!overwrite){
+                out.set_error(409, "File already exists (overwrite=false)");
+                return;
+            }
+        }
+
+        if(is_directory){
+            // Create directory
+            std::filesystem::create_directories(target_path, ec);
+            if(ec) {
+                out.set_error(ec.message().c_str());
+                THINGER_LOG_ERROR("error creating directory: {}", ec.message());
+                return;
+            }
+            THINGER_LOG("created directory: {}", target_path.string());
+
             out["success"] = true;
             out["path"] = target_path.string().c_str();
-            out["type"] = "file";
-            out["size"] = (uint64_t)data_size;
-            
-            if(data_size > 0){
-                if(file_exists){
-                    THINGER_LOG("updated file: {} ({} bytes)", target_path.filename().string(), data_size);
-                } else {
-                    THINGER_LOG("created file: {} ({} bytes)", target_path.filename().string(), data_size);
-                }
-            } else {
-                if(file_exists){
-                    THINGER_LOG("truncated file: {} (0 bytes)", target_path.filename().string());
-                } else {
-                    THINGER_LOG("created empty file: {}", target_path.filename().string());
-                }
-            }
+            out["type"] = "directory";
+            return;
+        }
 
-        } catch(const std::exception& e){
-            out.set_error(e.what());
-            THINGER_LOG_ERROR("error in handle_put: {}", e.what());
+        // Create parent directories if needed
+        std::filesystem::create_directories(target_path.parent_path(), ec);
+        if(ec) {
+            out.set_error(ec.message().c_str());
+            return;
+        }
+
+        // Write the file
+        std::ofstream file(target_path, std::ios::binary | std::ios::trunc);
+        if(!file.is_open()){
+            out.set_error("Failed to create file");
+            return;
+        }
+
+        // Write the data if any
+        if(data && data_size > 0){
+            file.write(reinterpret_cast<const char*>(data), data_size);
+
+            if(!file.good()){
+                out.set_error("Failed to write file");
+                file.close();
+                // Try to clean up the partial file
+                std::filesystem::remove(target_path, ec);
+                return;
+            }
+        }
+
+        file.close();
+
+        // Return success
+        out["success"] = true;
+        out["path"] = target_path.string().c_str();
+        out["type"] = "file";
+        out["size"] = (uint64_t)data_size;
+
+        if(data_size > 0){
+            if(file_exists){
+                THINGER_LOG("updated file: {} ({} bytes)", target_path.filename().string(), data_size);
+            } else {
+                THINGER_LOG("created file: {} ({} bytes)", target_path.filename().string(), data_size);
+            }
+        } else {
+            if(file_exists){
+                THINGER_LOG("truncated file: {} (0 bytes)", target_path.filename().string());
+            } else {
+                THINGER_LOG("created empty file: {}", target_path.filename().string());
+            }
         }
     }
     
@@ -355,34 +352,36 @@ namespace thinger::iotmp{
             return;
         }
 
-        try {
-            std::filesystem::path target_path;
-            if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
-                return; // Error already set in output
-            }
+        std::filesystem::path target_path;
+        if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
+            return; // Error already set in output
+        }
 
-            auto status = std::filesystem::status(target_path);
-            
-            out["name"] = target_path.filename().string().c_str();
-            out["path"] = target_path.string().c_str();
-            out["type"] = get_file_type(status).c_str();
-            
-            if(std::filesystem::is_regular_file(status)){
-                out["size"] = (uint64_t)std::filesystem::file_size(target_path);
-            }
-            
-            out["mode"] = format_permissions(status.permissions()).c_str();
-            
-            auto ftime = std::filesystem::last_write_time(target_path);
+        std::error_code ec;
+        auto status = std::filesystem::status(target_path, ec);
+        if(ec) {
+            out.set_error(ec.message().c_str());
+            return;
+        }
+
+        out["name"] = target_path.filename().string().c_str();
+        out["path"] = target_path.string().c_str();
+        out["type"] = get_file_type(status).c_str();
+
+        if(std::filesystem::is_regular_file(status)){
+            auto fsize = std::filesystem::file_size(target_path, ec);
+            out["size"] = ec ? (uint64_t)0 : (uint64_t)fsize;
+        }
+
+        out["mode"] = format_permissions(status.permissions()).c_str();
+
+        auto ftime = std::filesystem::last_write_time(target_path, ec);
+        if(!ec) {
             auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
                 ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now()
             );
             auto time_t_val = std::chrono::system_clock::to_time_t(sctp);
             out["modified"] = (uint64_t)time_t_val;
-
-        } catch(const std::exception& e){
-            out.set_error(e.what());
-            THINGER_LOG_ERROR("error in handle_info: {}", e.what());
         }
     }
 
@@ -395,40 +394,41 @@ namespace thinger::iotmp{
             return;
         }
 
-        try {
-            // Use centralized path resolution and validation
-            std::filesystem::path target_path;
-            if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
-                return; // Error already set by resolve_and_validate_path
-            }
-
-            // Prevent deletion of base path or parent directories
-            if(target_path == base_path_ || target_path == base_path_.parent_path()){
-                out.set_error(403, "Cannot delete base or parent directory");
-                return;
-            }
-
-            // Get recursive flag from parameters (sent by server)
-            json_t& params = in.get_params();
-            bool recursive = get_value(params, "recursive", false);
-
-            if(std::filesystem::is_directory(target_path)){
-                if(recursive){
-                    std::filesystem::remove_all(target_path);
-                } else {
-                    std::filesystem::remove(target_path);
-                }
-            } else {
-                std::filesystem::remove(target_path);
-            }
-
-            out["success"] = true;
-            out["deleted"] = target_path.string().c_str();
-
-        } catch(const std::exception& e){
-            out.set_error(e.what());
-            THINGER_LOG_ERROR("error in handle_delete: {}", e.what());
+        // Use centralized path resolution and validation
+        std::filesystem::path target_path;
+        if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
+            return; // Error already set by resolve_and_validate_path
         }
+
+        // Prevent deletion of base path or parent directories
+        if(target_path == base_path_ || target_path == base_path_.parent_path()){
+            out.set_error(403, "Cannot delete base or parent directory");
+            return;
+        }
+
+        // Get recursive flag from parameters (sent by server)
+        json_t& params = in.get_params();
+        bool recursive = get_value(params, "recursive", false);
+
+        std::error_code ec;
+        if(std::filesystem::is_directory(target_path, ec)){
+            if(recursive){
+                std::filesystem::remove_all(target_path, ec);
+            } else {
+                std::filesystem::remove(target_path, ec);
+            }
+        } else {
+            std::filesystem::remove(target_path, ec);
+        }
+
+        if(ec) {
+            out.set_error(ec.message().c_str());
+            THINGER_LOG_ERROR("error in handle_delete: {}", ec.message());
+            return;
+        }
+
+        out["success"] = true;
+        out["deleted"] = target_path.string().c_str();
     }
 
     // Removed: handle_mkdir is now integrated into handle_put
@@ -445,48 +445,48 @@ namespace thinger::iotmp{
             return;
         }
 
-        try {
-            // Get parameters from PARAMETERS field (for overwrite flag)
-            json_t& params = in.get_params();
+        // Get parameters from PARAMETERS field (for overwrite flag)
+        json_t& params = in.get_params();
 
-            // Use centralized validation for source path (from URL wildcard)
-            std::filesystem::path source_path;
-            if(!resolve_and_validate_path(in, out, source_path, "source", true)) {
-                return; // Error already set by resolve_and_validate_path
-            }
-
-            // Get destination from payload (sent by server in payload["destination"])
-            json_t& payload = in.payload();
-            std::string destination_str = get_value(payload, "destination", empty::string);
-            if(destination_str.empty()){
-                out.set_error(400, "Destination path is required");
-                return;
-            }
-
-            // Resolve and validate destination path
-            std::filesystem::path dest_path = resolve_path(destination_str);
-            if(!validate_resolved_path(dest_path)) {
-                out.set_error(403, "Access denied: destination path outside allowed directory");
-                return;
-            }
-
-            bool overwrite = get_value(params, "overwrite", false);
-
-            if(std::filesystem::exists(dest_path) && !overwrite){
-                out.set_error(409, "Destination already exists");
-                return;
-            }
-
-            std::filesystem::rename(source_path, dest_path);
-
-            out["success"] = true;
-            out["source"] = source_path.string().c_str();
-            out["destination"] = dest_path.string().c_str();
-
-        } catch(const std::exception& e){
-            out.set_error(e.what());
-            THINGER_LOG_ERROR("error in handle_move: {}", e.what());
+        // Use centralized validation for source path (from URL wildcard)
+        std::filesystem::path source_path;
+        if(!resolve_and_validate_path(in, out, source_path, "source", true)) {
+            return; // Error already set by resolve_and_validate_path
         }
+
+        // Get destination from payload (sent by server in payload["destination"])
+        json_t& payload = in.payload();
+        std::string destination_str = get_value(payload, "destination", empty::string);
+        if(destination_str.empty()){
+            out.set_error(400, "Destination path is required");
+            return;
+        }
+
+        // Resolve and validate destination path
+        std::filesystem::path dest_path = resolve_path(destination_str);
+        if(!validate_resolved_path(dest_path)) {
+            out.set_error(403, "Access denied: destination path outside allowed directory");
+            return;
+        }
+
+        bool overwrite = get_value(params, "overwrite", false);
+
+        std::error_code ec;
+        if(std::filesystem::exists(dest_path, ec) && !overwrite){
+            out.set_error(409, "Destination already exists");
+            return;
+        }
+
+        std::filesystem::rename(source_path, dest_path, ec);
+        if(ec) {
+            out.set_error(ec.message().c_str());
+            THINGER_LOG_ERROR("error in handle_move: {}", ec.message());
+            return;
+        }
+
+        out["success"] = true;
+        out["source"] = source_path.string().c_str();
+        out["destination"] = dest_path.string().c_str();
     }
 
     bool filesystem::is_path_safe(const std::string& path) const {
@@ -642,15 +642,15 @@ namespace thinger::iotmp{
         }
 
         // Check available disk space before starting upload
-        try {
-            std::filesystem::space_info space = std::filesystem::space(file_path.parent_path());
-            if(space.available < expected_size) {
-                THINGER_LOG_ERROR("upload: insufficient disk space - need {} bytes, available {} bytes",
-                                 expected_size, space.available);
-                return nullptr;
-            }
-        } catch(const std::exception& e) {
-            THINGER_LOG_ERROR("upload: failed to check disk space - {}", e.what());
+        std::error_code ec;
+        std::filesystem::space_info space = std::filesystem::space(file_path.parent_path(), ec);
+        if(ec) {
+            THINGER_LOG_ERROR("upload: failed to check disk space - {}", ec.message());
+            return nullptr;
+        }
+        if(space.available < expected_size) {
+            THINGER_LOG_ERROR("upload: insufficient disk space - need {} bytes, available {} bytes",
+                             expected_size, space.available);
             return nullptr;
         }
 

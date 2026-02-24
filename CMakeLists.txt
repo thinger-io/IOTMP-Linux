@@ -7,8 +7,8 @@ endif()
 
 # set package version
 SET(VERSION_MAJOR "1" CACHE STRING "Major version number")
-set(VERSION_MINOR "2" CACHE STRING "Minor version number")
-set(VERSION_PATCH "3" CACHE STRING "Patch version number")
+set(VERSION_MINOR "3" CACHE STRING "Minor version number")
+set(VERSION_PATCH "0" CACHE STRING "Patch version number")
 
 # add version for source code
 add_definitions(-DVERSION_MAJOR=${VERSION_MAJOR})
@@ -122,7 +122,7 @@ if (NOT PROJECT_IS_TOP_LEVEL)
     message(STATUS "Building ${PROJECT_NAME} as shared library")
   endif()
 
-  target_compile_definitions(${PROJECT_NAME} PUBLIC 
+  target_compile_definitions(${PROJECT_NAME} PUBLIC
       THINGER_SERVER="iot.thinger.io"
       THINGER_ENABLE_STREAM_LISTENER
   )

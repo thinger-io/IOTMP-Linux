@@ -11,7 +11,6 @@ proxy_session::proxy_session(client& client, uint16_t stream_id, std::string ses
       host_(std::move(host)),
       port_(port)
 {
-    // Create socket based on security setting
     auto& io = client.get_io_context();
     if(secure) {
         auto ssl_context = std::make_shared<boost::asio::ssl::context>(
@@ -30,22 +29,21 @@ proxy_session::~proxy_session() {
 awaitable<exec_result> proxy_session::start() {
     THINGER_LOG("[{}] starting proxy session: {}:{}", stream_id_, host_, port_);
 
-    try {
-        co_await socket_->connect(host_, std::to_string(port_), std::chrono::seconds(10));
-        THINGER_LOG("[{}] target proxy connected: {}:{}", stream_id_, host_, port_);
-
-        running_ = true;
-
-        // Launch read loop
-        co_spawn(socket_->get_io_context(), read_loop(), detached);
-
-        co_return true;
-
-    } catch(const std::exception& e) {
+    auto ec = co_await socket_->connect(host_, std::to_string(port_), std::chrono::seconds(10));
+    if(ec) {
         THINGER_LOG_ERROR("[{}] error on proxy connection: {}:{} ({})",
-                         stream_id_, host_, port_, e.what());
-        co_return exec_result{false, e.what()};
+                         stream_id_, host_, port_, ec.message());
+        co_return exec_result{false, ec.message()};
     }
+
+    THINGER_LOG("[{}] target proxy connected: {}:{}", stream_id_, host_, port_);
+
+    running_ = true;
+
+    // Launch read loop
+    co_spawn(socket_->get_io_context(), read_loop(), detached);
+
+    co_return true;
 }
 
 bool proxy_session::stop(StopReason reason) {
@@ -79,29 +77,20 @@ awaitable<void> proxy_session::read_loop() {
     auto self = shared_from_this();
 
     while(running_ && socket_->is_open()) {
-        try {
-            auto bytes = co_await socket_->read_some(read_buffer_, PROXY_BUFFER_SIZE);
+        auto [read_ec, bytes] = co_await socket_->read_some(read_buffer_, PROXY_BUFFER_SIZE);
 
-            if(bytes > 0) {
-                increase_received(bytes);
-
-                if(!client_.stream_resource(stream_id_, read_buffer_, bytes)) {
-                    THINGER_LOG_ERROR("[{}] cannot send proxy data for stream id", stream_id_);
-                    stop();
-                    break;
-                }
+        if(read_ec) {
+            if(read_ec != boost::asio::error::operation_aborted) {
+                THINGER_LOG_ERROR("[{}] proxy read error: {}", stream_id_, read_ec.message());
             }
-
-        } catch(const boost::system::system_error& e) {
-            if(e.code() != boost::asio::error::operation_aborted) {
-                THINGER_LOG_ERROR("[{}] error reading from proxy after {}: {}",
-                                 stream_id_, last_usage().count(), e.what());
-                stop();
-            }
+            stop();
             break;
-        } catch(const std::exception& e) {
-            THINGER_LOG_ERROR("[{}] unexpected error in proxy read_loop: {}",
-                             stream_id_, e.what());
+        }
+
+        increase_received(bytes);
+
+        if(!client_.stream_resource(stream_id_, read_buffer_, bytes)) {
+            THINGER_LOG_ERROR("[{}] cannot send proxy data for stream id", stream_id_);
             stop();
             break;
         }
@@ -111,27 +100,24 @@ awaitable<void> proxy_session::read_loop() {
 awaitable<void> proxy_session::write_loop() {
     auto self = shared_from_this();
 
-    while(running_ && !write_queue_.empty() && socket_->is_open()) {
-        auto data = std::move(write_queue_.front());
-        write_queue_.pop();
-
-        try {
-            co_await socket_->write(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-            increase_sent(data.size());
-
-        } catch(const boost::system::system_error& e) {
-            if(e.code() != boost::asio::error::operation_aborted) {
-                THINGER_LOG_ERROR("[{}] error writing to proxy: {} ({})",
-                                 stream_id_, e.code().value(), e.what());
-                stop();
-            }
-            break;
-        } catch(const std::exception& e) {
-            THINGER_LOG_ERROR("[{}] unexpected error in proxy write_loop: {}",
-                             stream_id_, e.what());
+    while(running_ && !write_queue_.empty()) {
+        if(!socket_ || !socket_->is_open()) {
             stop();
             break;
         }
+
+        auto data = std::move(write_queue_.front());
+        write_queue_.pop();
+
+        auto [write_ec, bytes] = co_await socket_->write(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+        if(write_ec) {
+            if(write_ec != boost::asio::error::operation_aborted) {
+                THINGER_LOG_ERROR("[{}] proxy write error: {}", stream_id_, write_ec.message());
+            }
+            stop();
+            break;
+        }
+        increase_sent(data.size());
     }
 
     write_in_progress_ = false;

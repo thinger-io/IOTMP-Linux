@@ -83,17 +83,16 @@ namespace thinger::iotmp{
         if constexpr (std::is_same<T, nlohmann::json>::value) {
             return *current;
         } else if constexpr (std::is_same<T, std::string>::value) {
-            try {
-                return current->get_ref<const std::string&>();
-            } catch (...) {
-                return default_value;
-            }
+            if(current->is_string()) return current->get_ref<const std::string&>();
+            return default_value;
+        } else if constexpr (std::is_same<T, bool>::value) {
+            if(current->is_boolean()) return current->get<bool>();
+            return default_value;
+        } else if constexpr (std::is_arithmetic<T>::value) {
+            if(current->is_number()) return current->get<T>();
+            return default_value;
         } else {
-            try {
-                return current->get<T>();
-            } catch (...) {
-                return default_value;
-            }
+            return default_value;
         }
     }
 
@@ -693,14 +692,13 @@ namespace thinger::iotmp{
                     input input_body(0, in);
                     std::string req_path = req.path.substr(1);
                     if(matches(name_, req_path, path)) input_body.set_path_fields(path);
-                    // try to parse json
-                    try {
-                        in = json_t::parse(req.body);
-                        // call the regular input callback
-                        callback_.input_(input_body);
-                    } catch(...) {
+                    // parse json with validation
+                    if(!json_t::accept(req.body)) {
                         res.status = 400;
+                        return;
                     }
+                    in = json_t::parse(req.body, nullptr, false);
+                    callback_.input_(input_body);
                 });
             }
 #endif
@@ -787,12 +785,11 @@ namespace thinger::iotmp{
                     // decode input
                     json_t in;
                     if(!req.body.empty()){
-                        try {
-                            in = json_t::parse(req.body);
-                        } catch(...) {
+                        if(!json_t::accept(req.body)) {
                             res.status = 400;
                             return;
                         }
+                        in = json_t::parse(req.body, nullptr, false);
                     }
 
                     // define output
