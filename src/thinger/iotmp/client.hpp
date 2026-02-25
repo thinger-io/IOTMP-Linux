@@ -883,6 +883,12 @@ namespace thinger::iotmp {
                 case message::STREAM_DATA: {
                     iotmp_message response(request.get_stream_id(), message::type::STREAM_DATA);
                     resource->run_resource(request, response);
+                    // after receiving input on a streamed resource, echo back current state
+                    if(resource->stream_echo() &&
+                       (resource->get_io_type() == iotmp_resource::input_wrapper ||
+                        resource->get_io_type() == iotmp_resource::input_output_wrapper)) {
+                        stream_resource(*resource, request.get_stream_id());
+                    }
                     break;
                 }
 
