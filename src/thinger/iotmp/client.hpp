@@ -6,6 +6,7 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/redirect_error.hpp>
+#include <boost/asio/thread_pool.hpp>
 
 #include <string>
 #include <chrono>
@@ -137,6 +138,7 @@ namespace thinger::iotmp {
             if(!worker_client::stop()) return false;
             if(keep_alive_timer_) keep_alive_timer_->cancel();
             if(stream_timer_) stream_timer_->cancel();
+            resource_pool_.join();
             if(socket_) {
                 socket_->close();
                 socket_.reset();
@@ -202,7 +204,7 @@ namespace thinger::iotmp {
                     }
                     co_return response->get_message_type() == message::type::OK;
                 } else {
-                    handle_message(*response);
+                    co_await handle_message(std::move(*response));
                 }
             }
         }
@@ -539,7 +541,7 @@ namespace thinger::iotmp {
             while(running_ && connected_) {
                 auto message = co_await read_message();
                 if(!message) break;
-                handle_message(*message);
+                co_spawn(get_io_context(), handle_message(std::move(*message)), detached);
             }
         }
 
@@ -697,8 +699,8 @@ namespace thinger::iotmp {
             auto [ec] = co_await timer.async_wait(use_nothrow_awaitable);
         }
 
-        // Handle received message
-        void handle_message(iotmp_message& message) {
+        // Handle received message (coroutine - may dispatch blocking work to thread pool)
+        awaitable<void> handle_message(iotmp_message message) {
             switch(message.get_message_type()) {
                 case message::KEEP_ALIVE:
                     LOG_DEBUG("Keep-alive received");
@@ -709,7 +711,7 @@ namespace thinger::iotmp {
                 case message::START_STREAM:
                 case message::STOP_STREAM:
                 case message::STREAM_DATA:
-                    handle_resource_request(message);
+                    co_await handle_resource_request(message);
                     break;
 
                 default:
@@ -769,8 +771,8 @@ namespace thinger::iotmp {
             return nullptr;
         }
 
-        // Handle resource request
-        void handle_resource_request(iotmp_message& request) {
+        // Handle resource request (coroutine - RUN dispatches to thread pool)
+        awaitable<void> handle_resource_request(iotmp_message& request) {
             iotmp_resource* resource = nullptr;
 
             auto msg_type = request.get_message_type();
@@ -796,20 +798,25 @@ namespace thinger::iotmp {
                         res.fill_api(response[message::field::PAYLOAD][resource_path]);
                     }
                     send_message(response);
-                    return;
+                    co_return;
                 }
 
                 if(msg_type != message::STREAM_DATA) {
                     iotmp_message error(request.get_stream_id(), message::type::ERROR);
                     send_message(error);
                 }
-                return;
+                co_return;
             }
 
             switch(request.get_message_type()) {
                 case message::RUN: {
                     iotmp_message response(request.get_stream_id(), message::type::OK);
-                    bool success = resource->run_resource(request, response);
+                    // Dispatch blocking resource execution to thread pool
+                    // After co_await, execution resumes on io_context (safe for send_message)
+                    bool success = co_await co_spawn(resource_pool_.get_executor(),
+                        [resource, &request, &response]() -> awaitable<bool> {
+                            co_return resource->run_resource(request, response);
+                        }(), use_awaitable);
                     response.set_message_type(success ? message::type::OK : message::type::ERROR);
                     send_message(response);
                     break;
@@ -935,6 +942,9 @@ namespace thinger::iotmp {
         std::map<uint16_t, stream_config> streams_;
         std::map<uint8_t, iotmp_server_event> events_;
         std::vector<uint8_t> read_buffer_;
+
+        // Thread pool for dispatching blocking resource executions (e.g., scripts)
+        asio::thread_pool resource_pool_{std::min(std::thread::hardware_concurrency(), 4u)};
 
         // Write queue for serialized writes
         std::queue<std::string> write_queue_;
