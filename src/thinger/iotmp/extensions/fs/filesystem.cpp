@@ -58,6 +58,15 @@ namespace thinger::iotmp{
         uploads_manager_ = std::make_unique<filesystem_uploads>(client, *this);
     }
 
+    void filesystem::set_base_path(const std::filesystem::path& path) {
+        base_path_ = path;
+        if(base_path_.empty()) {
+            THINGER_LOG("filesystem base path cleared (unrestricted access)");
+        } else {
+            THINGER_LOG("filesystem base path changed to: {}", base_path_.string());
+        }
+    }
+
     void filesystem::handle_get(input& in, output& out){
         // In describe mode, return schema without executing
         if(in.describe()) {

@@ -111,6 +111,9 @@ namespace thinger::iotmp{
         explicit filesystem(client& client, const std::filesystem::path& base_path = std::filesystem::current_path());
         ~filesystem() = default;
 
+        void set_base_path(const std::filesystem::path& path);
+        const std::filesystem::path& get_base_path() const { return base_path_; }
+
     private:
         void handle_get(input& in, output& out);  // Unified GET handler
         void handle_list(input& in, output& out);
