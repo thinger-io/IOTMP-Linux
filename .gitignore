@@ -1,6 +1,7 @@
 .idea
 .vscode
 .claude
+.mcp.json
 .DS_Store
 cmake*/
 build/
