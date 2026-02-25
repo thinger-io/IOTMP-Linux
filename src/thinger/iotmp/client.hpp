@@ -926,14 +926,14 @@ namespace thinger::iotmp {
         }
 
     private:
-        transport_type transport_;
+        transport_type transport_ = transport_type::SSL;
         std::shared_ptr<thinger::asio::socket> socket_;
         std::shared_ptr<boost::asio::ssl::context> ssl_context_;
         std::optional<asio::steady_timer> keep_alive_timer_;
         std::optional<asio::steady_timer> stream_timer_;
 
         std::string host_;
-        uint16_t port_ = 0;
+        uint16_t port_ = 25206;
         std::string username_;
         std::string device_id_;
         std::string device_password_;
