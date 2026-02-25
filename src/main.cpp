@@ -20,7 +20,7 @@ namespace po = boost::program_options;
 
 int main(int argc, char* argv[]) {
     // Parsear argumentos
-    std::string username, device, password, hostname, transport;
+    std::string username, device, password, hostname, transport, fs_path;
     int verbosity = 0;
 
     po::options_description desc("IOTMP Async Client");
@@ -31,6 +31,7 @@ int main(int argc, char* argv[]) {
         ("password,p", po::value<std::string>(&password), "device password")
         ("host,h", po::value<std::string>(&hostname)->default_value("iot.thinger.io"), "server hostname")
         ("transport,t", po::value<std::string>(&transport)->default_value("ssl"), "transport type: ssl, ws, tcp")
+        ("fs-path,f", po::value<std::string>(&fs_path), "filesystem base path")
         ("verbosity,v", po::value<int>(&verbosity)->default_value(0), "verbosity level");
 
     po::variables_map vm;
@@ -81,78 +82,9 @@ int main(int argc, char* argv[]) {
     iotmp_client.set_host(hostname);
     iotmp_client.set_transport(trans);
 
-    // Definir recursos - prueba de diferentes tipos
-    iotmp_client["input_bool"] = [](input& in) {
-        bool value = in["value"];
-        std::cout << "bool: " << (value ? "true" : "false") << "\n";
-    };
-
-    iotmp_client["input_int"] = [](input& in) {
-        int value = in["value"];
-        std::cout << "int: " << value << "\n";
-    };
-
-    iotmp_client["input_float"] = [](input& in) {
-        float value = in["value"];
-        std::cout << "float: " << value << "\n";
-    };
-
-    iotmp_client["input_double"] = [](input& in) {
-        double value = in["value"];
-        std::cout << "double: " << value << "\n";
-    };
-
-    iotmp_client["input_string"] = [](input& in) {
-        std::string value = in["value"];
-        std::cout << "string: " << value << "\n";
-    };
-
-    iotmp_client["input_multiple"] = [](input& in) {
-        bool b = in["bool_val"];
-        int i = in["int_val"];
-        float f = in["float_val"];
-        std::string s = in["string_val"];
-        std::cout << "multiple: " << b << ", " << i << ", " << f << ", " << s << "\n";
-    };
-
-    // Prueba de input directo (sin campos)
-    iotmp_client["input_direct_bool"] = [](input& in) {
-        bool value = in;
-        std::cout << "direct bool: " << (value ? "true" : "false") << "\n";
-    };
-
-    iotmp_client["input_direct_int"] = [](input& in) {
-        int value = in;
-        std::cout << "direct int: " << value << "\n";
-    };
-
-    iotmp_client["input_direct_float"] = [](input& in) {
-        float value = in;
-        std::cout << "direct float: " << value << "\n";
-    };
-
-    iotmp_client["input_direct_string"] = [](input& in) {
-        std::string value = in;
-        std::cout << "direct string: " << value << "\n";
-    };
-
-    iotmp_client["temperature"] = [](output& out) {
-        static float temp = 20.0f;
-        temp += 0.1f;
-        out["celsius"] = temp;
-        out["fahrenheit"] = temp * 9.0f / 5.0f + 32.0f;
-    };
-
-    iotmp_client["sum"] = [](input& in, output& out) {
-        int a = in["a"];
-        int b = in["b"];
-        out["result"] = a + b;
-    };
-
     // Inicializar extensiones
     terminal shell(iotmp_client);
-    std::filesystem::path fs_base_path = "/Users/alvarolb/Desktop";
-    filesystem fs(iotmp_client, fs_base_path);
+    filesystem fs(iotmp_client, fs_path.empty() ? std::filesystem::current_path() : std::filesystem::path(fs_path));
     proxy tcp_proxy(iotmp_client);
     version ver(iotmp_client);
 
