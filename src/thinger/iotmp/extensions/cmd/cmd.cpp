@@ -1,6 +1,9 @@
 #include "cmd.hpp"
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/readable_pipe.hpp>
+#include <boost/asio/writable_pipe.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 
@@ -11,15 +14,26 @@ namespace thinger::iotmp{
         // initialize cmd resource
         client["cmd"] = [this](input& in, output& out){
             if(in.describe()){
-                in["command"]   = "";
+                in["cmd"]       = "";
                 in["mode"]      = "api";
+                in["timeout"]   = 30;
                 out["retcode"]  = 0;
                 out["stdout"]   = "";
                 out["stderr"]   = "";
             }else{
                 std::string pout;
                 std::string perr;
-                auto retcode = exec(get_value(in.payload(), "command", empty::string), pout, perr);
+                auto command = get_value(in.payload(), "cmd", empty::string);
+                auto timeout = get_value(in.payload(), "timeout", 30);
+                bool timeout_flag = false;
+                auto retcode = exec("/bin/sh", {"-c", command}, pout, perr, "", timeout, &timeout_flag);
+
+                // signal error at protocol level
+                if(timeout_flag){
+                    out.set_error(408, "command timed out");
+                }else if(retcode != 0){
+                    out.set_error(500, "command failed");
+                }
 
                 std::string mode = get_value(in.payload(), "mode", empty::string);
                 if(mode=="api" || mode == ""){
@@ -37,40 +51,34 @@ namespace thinger::iotmp{
         };
     }
 
-    std::vector<std::string> tokenize(const std::string& in) {
-        char sep = ' ';
-        std::string::size_type b = 0;
-        std::vector<std::string> result;
-
-        while ((b = in.find_first_not_of(sep, b)) != std::string::npos) {
-            auto e = in.find_first_of(sep, b);
-            result.push_back(in.substr(b, e-b));
-            b = e;
-        }
-        return result;
-    }
-
-    int cmd::exec(const std::string& command, std::string& pout, std::string& perr)
+    int cmd::exec(const std::string& executable,
+                  const std::vector<std::string>& args,
+                  std::string& pout,
+                  std::string& perr,
+                  const std::string& stdin_data,
+                  int timeout_seconds,
+                  bool* timed_out)
     {
-        LOG_INFO("$ {}", command);
+        if (timed_out) *timed_out = false;
 
         boost::asio::io_context ioc;
         namespace bp2 = boost::process::v2;
 
-        // readable pipes for stdout and stderr
+        // pipes for stdin, stdout and stderr
+        boost::asio::writable_pipe stdin_pipe(ioc);
         boost::asio::readable_pipe stdout_pipe(ioc);
         boost::asio::readable_pipe stderr_pipe(ioc);
 
-        // create the process with the command
+        // create the process
         boost::system::error_code proc_ec;
         bp2::process proc(
             ioc.get_executor(),
-            "/bin/sh",
-            {"-c", command},
+            executable,
+            args,
             bp2::process_stdio{
-                nullptr,        // stdin como null
-                stdout_pipe,    // stdout
-                stderr_pipe     // stderr
+                stdin_pipe,
+                stdout_pipe,
+                stderr_pipe
             },
             proc_ec
         );
@@ -81,6 +89,16 @@ namespace thinger::iotmp{
             return EXIT_FAILURE;
         }
 
+        // write stdin data if provided, then close
+        if (!stdin_data.empty()) {
+            boost::system::error_code write_ec;
+            boost::asio::write(stdin_pipe, boost::asio::buffer(stdin_data), write_ec);
+            if (write_ec) {
+                LOG_WARNING("failed to write stdin: {}", write_ec.message());
+            }
+        }
+        stdin_pipe.close();
+
         // buffer for stdout
         std::string stdout_data;
         boost::asio::dynamic_string_buffer stdout_buffer(stdout_data, 1024);
@@ -90,8 +108,6 @@ namespace thinger::iotmp{
             if (!ec) {
                 pout.append(stdout_data.data(), size);
                 stdout_data.erase(0, size);
-
-                // Continuar leyendo
                 boost::asio::async_read(stdout_pipe, stdout_buffer,
                     boost::asio::transfer_at_least(1), on_stdout);
             }
@@ -105,35 +121,45 @@ namespace thinger::iotmp{
         on_stderr = [&](boost::system::error_code ec, std::size_t size) {
             if (!ec) {
                 perr.append(stderr_data.data(), size);
-                LOG_ERROR("{}", std::string_view(stderr_data.data(), size));
+                LOG_WARNING("{}", std::string_view(stderr_data.data(), size));
                 stderr_data.erase(0, size);
-
-                // Continuar leyendo
                 boost::asio::async_read(stderr_pipe, stderr_buffer,
                     boost::asio::transfer_at_least(1), on_stderr);
             }
         };
 
-        // init the async read operations on stdout and stderr
+        // start async read operations
         boost::asio::async_read(stdout_pipe, stdout_buffer,
             boost::asio::transfer_at_least(1), on_stdout);
         boost::asio::async_read(stderr_pipe, stderr_buffer,
             boost::asio::transfer_at_least(1), on_stderr);
 
-        // init exit code
         int exit_code = -1;
+
+        // optional timeout
+        boost::asio::steady_timer timer(ioc);
+        if (timeout_seconds > 0) {
+            timer.expires_after(std::chrono::seconds(timeout_seconds));
+            timer.async_wait([&](boost::system::error_code ec) {
+                if (!ec) {
+                    LOG_WARNING("process timed out after {}s, terminating", timeout_seconds);
+                    if (timed_out) *timed_out = true;
+                    boost::system::error_code kill_ec;
+                    proc.terminate(kill_ec);
+                }
+            });
+        }
 
         // wait until the process finishes
         proc.async_wait([&](boost::system::error_code ec, int native_exit_code) {
             if (!ec) {
-                // keep the exit code
                 exit_code = bp2::evaluate_exit_code(native_exit_code);
             }
-            // stop the io_context
+            timer.cancel();
             ioc.stop();
         });
 
-        // run the io_context to process the async operations
+        // run all async operations
         ioc.run();
 
         return exit_code;

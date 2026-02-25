@@ -123,10 +123,8 @@ namespace thinger::iotmp{
         void handle_delete(input& in, output& out);
         void handle_move(input& in, output& out);
 
-        bool is_path_safe(const std::string& path) const;
         bool is_within_base_path(const std::filesystem::path& path) const;
-        std::string normalize_path(const std::string& path) const;
-        bool resolve_and_validate_path(input& in, output& out, std::filesystem::path& resolved_path, 
+        bool resolve_and_validate_path(input& in, output& out, std::filesystem::path& resolved_path,
                                        const char* wildcard_name = "path", bool check_exists = true);
         
     public:

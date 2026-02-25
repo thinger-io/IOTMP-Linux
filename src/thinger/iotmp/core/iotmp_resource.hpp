@@ -391,110 +391,12 @@ namespace thinger::iotmp{
             return stream_id_;
         }
 
-/*
-        void start_stream(uint16_t stream_id, json_t& parameters){
-
-            if(parameters.is_number()) {
-                stream_id_sampling_ = stream_id;
-                streaming_freq_ = stream_id;
-                last_streaming_ = 0;
-            }else {
-                stream_id_ = stream_id;
-                streaming_freq_ = 0;
-            }
-
-#ifdef THINGER_ENABLE_STREAM_LISTENER
-            if(stream_listener_){
-                stream_listener_(stream_id, parameters, true);
-            }
-#endif
-        }
-
-
-
-        void stop_stream(json_t& parameters){
-#ifdef THINGER_ENABLE_STREAM_LISTENER
-            if(stream_listener_){
-                stream_listener_(stream_id_, parameters, false);
-            }
-#endif
-            stream_id_ = 0;
-            streaming_freq_ = 0;
-        }
-
-        bool stream_required(unsigned long timestamp){
-            // sample interval is activated
-            if(streaming_freq_>0){
-                if(timestamp-last_streaming_>=streaming_freq_){
-                    last_streaming_ = timestamp;
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        uint16_t get_stream_id() const{
-            return stream_id_;
-        }
-
-        void set_stream_id(uint16_t stream_id){
-            stream_id_ = stream_id;
-        }
-
-        bool stream_enabled() const{
-            return stream_id_ > 0;
-        }
-
-         */
-
         iotmp_resource& operator()(std::string_view name) {
 #ifdef THINGER_USE_LOCAL_HTTPLIB
             name_ = std::string(name);
 #endif
             return *this;
         }
-
-        /*
-        iotmp_resource & operator()(access_type type){
-            access_type_ = type;
-            return *this;
-        }
-
-
-        iotmp_resource & operator()(json_t& data){
-            switch(io_type_){
-                case input_wrapper:
-                    callback_.input_(data);
-                    break;
-                case input_output_wrapper:
-                    callback_.input_output_(data, data);
-                    break;
-                case output_wrapper:
-                    callback_.output_(data);
-                    break;
-                default:
-                    break;
-            }
-            return *this;
-        }
-
-        iotmp_resource & operator()(json_t& in, json_t& out){
-            switch(io_type_){
-                case input_wrapper:
-                    callback_.input_(out);
-                    break;
-                case input_output_wrapper:
-                    callback_.input_output_(in, out);
-                    break;
-                case output_wrapper:
-                    callback_.output_(out);
-                    break;
-                default:
-                    break;
-            }
-            return *this;
-        }
-         */
 
 
         bool stream_echo(){

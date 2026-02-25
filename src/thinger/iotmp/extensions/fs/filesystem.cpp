@@ -498,20 +498,6 @@ namespace thinger::iotmp{
         out["destination"] = dest_path.string().c_str();
     }
 
-    bool filesystem::is_path_safe(const std::string& path) const {
-        // Basic safety check - no path traversal
-        if(path.find("..") != std::string::npos){
-            return false;
-        }
-        
-        // Require absolute paths
-        if(path.empty() || path[0] != '/') {
-            return false;
-        }
-        
-        return true;
-    }
-    
     bool filesystem::is_within_base_path(const std::filesystem::path& path) const {
         // If no base_path restriction, allow all
         if(base_path_.empty()) return true;
@@ -524,11 +510,6 @@ namespace thinger::iotmp{
         auto [base_end, nothing] = std::mismatch(canonical_base.begin(), canonical_base.end(), 
                                                   canonical_path.begin(), canonical_path.end());
         return base_end == canonical_base.end();
-    }
-
-    std::string filesystem::normalize_path(const std::string& path) const {
-        std::filesystem::path p(path);
-        return p.lexically_normal().string();
     }
 
     std::string filesystem::get_file_type(const std::filesystem::file_status& status) const {
