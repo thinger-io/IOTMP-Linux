@@ -366,29 +366,37 @@ namespace thinger::iotmp {
         // Main coroutine - handles connection, reconnection, reading
         awaitable<void> run_loop() {
             while(running_) {
-                auto ec = co_await connect();
-                if(ec) {
-                    notify_state(client_state::CONNECTION_ERROR, ec.message());
-                    LOG_ERROR("Connection error: {}", ec.message());
-                } else if(!co_await authenticate()) {
-                    LOG_ERROR("Authentication failed");
-                } else {
-                    LOG_INFO("Authenticated successfully!");
-                    connected_ = true;
+                try {
+                    auto ec = co_await connect();
+                    if(ec) {
+                        notify_state(client_state::CONNECTION_ERROR, ec.message());
+                        LOG_ERROR("Connection error: {}", ec.message());
+                    } else if(!co_await authenticate()) {
+                        LOG_ERROR("Authentication failed");
+                    } else {
+                        LOG_INFO("Authenticated successfully!");
+                        connected_ = true;
 
-                    // Initialize server event streams (MQTT topics, properties, etc.)
-                    co_await initialize_streams();
+                        // Initialize server event streams (MQTT topics, properties, etc.)
+                        co_await initialize_streams();
 
-                    // Launch keep-alive in parallel (use socket's io_context)
-                    co_spawn(get_io_context(), keep_alive_loop(), detached);
+                        // Launch keep-alive in parallel (use socket's io_context)
+                        co_spawn(get_io_context(), keep_alive_loop(), detached);
 
-                    // Launch stream interval loop for periodic streaming
-                    co_spawn(get_io_context(), stream_interval_loop(), detached);
+                        // Launch stream interval loop for periodic streaming
+                        co_spawn(get_io_context(), stream_interval_loop(), detached);
 
-                    notify_state(client_state::STREAMS_READY);
+                        notify_state(client_state::STREAMS_READY);
 
-                    // Message read loop
-                    co_await read_loop();
+                        // Message read loop
+                        co_await read_loop();
+                    }
+                } catch(const std::exception& e) {
+                    LOG_ERROR("Exception in connection cycle: {}", e.what());
+                    notify_state(client_state::CONNECTION_ERROR, e.what());
+                } catch(...) {
+                    LOG_ERROR("Unknown exception in connection cycle");
+                    notify_state(client_state::CONNECTION_ERROR, "unknown exception");
                 }
 
                 connected_ = false;
@@ -693,10 +701,14 @@ namespace thinger::iotmp {
 
         // Delay helper
         awaitable<void> delay(std::chrono::seconds duration) {
-            // Use current thread's io_context (works even without socket)
-            auto& io = thinger::asio::get_workers().get_thread_io_context();
-            asio::steady_timer timer(io, duration);
-            auto [ec] = co_await timer.async_wait(use_nothrow_awaitable);
+            try {
+                // Use current thread's io_context (works even without socket)
+                auto& io = thinger::asio::get_workers().get_thread_io_context();
+                asio::steady_timer timer(io, duration);
+                auto [ec] = co_await timer.async_wait(use_nothrow_awaitable);
+            } catch(const std::exception& e) {
+                LOG_ERROR("Exception in delay timer: {}", e.what());
+            }
         }
 
         // Handle received message (coroutine - may dispatch blocking work to thread pool)
@@ -901,9 +913,11 @@ namespace thinger::iotmp {
         bool stream_resource(iotmp_resource& resource, uint16_t stream_id) {
             iotmp_message request(message::type::STREAM_DATA), response(message::type::STREAM_DATA);
             resource.run_resource(request, response);
-            if(request.has_field(message::field::PAYLOAD)) {
-                request.set_stream_id(stream_id);
-                send_message(request);
+            // output resources write to response, input resources write to request
+            auto& msg = response.has_field(message::field::PAYLOAD) ? response : request;
+            if(msg.has_field(message::field::PAYLOAD)) {
+                msg.set_stream_id(stream_id);
+                send_message(msg);
                 return true;
             }
             return false;
