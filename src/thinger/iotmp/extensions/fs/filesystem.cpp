@@ -463,9 +463,9 @@ namespace thinger::iotmp{
             return; // Error already set by resolve_and_validate_path
         }
 
-        // Get destination from payload (sent by server in payload["destination"])
+        // Get destination path from payload
         json_t& payload = in.payload();
-        std::string destination_str = get_value(payload, "destination", empty::string);
+        std::string destination_str = get_value(payload, "path", empty::string);
         if(destination_str.empty()){
             out.set_error(400, "Destination path is required");
             return;
