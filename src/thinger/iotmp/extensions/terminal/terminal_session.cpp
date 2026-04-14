@@ -1,8 +1,8 @@
 #include "terminal_session.hpp"
+#include "../../util/shell.hpp"
 
 #include <boost/process.hpp>
 #include <boost/asio.hpp>
-#include <filesystem>
 #include <thinger/util/logger.hpp>
 
 #ifdef __linux__
@@ -18,14 +18,7 @@ terminal_session::terminal_session(client& client, uint16_t stream_id, std::stri
     : stream_session(client, stream_id, std::move(session)),
       descriptor_(client.get_io_context())
 {
-    // Find available terminal
-    std::vector<std::string> terminals{"zsh", "bash", "sh", "ash"};
-    for(auto& terminal : terminals) {
-        if(std::filesystem::exists("/bin/" + terminal)) {
-            terminal_ = terminal;
-            break;
-        }
-    }
+    terminal_ = preferred_shell_name();
 
     // Initialize cols and rows from parameters
     cols_ = get_value(parameters, "cols", 80u);
