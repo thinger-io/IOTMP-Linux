@@ -9,19 +9,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ghcr.io/thin-remote/musl-toolchain:x86_64-linux-musl-latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake \
-            libboost-all-dev \
-            libssl-dev
-
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBoost_NO_BOOST_CMAKE=ON
+        shell: bash
+        run: cmake -B /build -DCMAKE_BUILD_TYPE=Release -DSTATIC=ON -DARCH=x86_64-linux-musl
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build /build -j$(nproc)
