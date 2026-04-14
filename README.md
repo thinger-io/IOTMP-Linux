@@ -1,5 +1,7 @@
 # Thinger.io IOTMP Linux Client
 
+[![Build](https://github.com/thinger-io/IOTMP-Linux/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/thinger-io/IOTMP-Linux/actions/workflows/build.yml)
+
 A modern C++20 client library for connecting Linux devices to the [Thinger.io](https://thinger.io) IoT platform using the IOTMP (IoT Message Protocol). Built on Boost.Asio coroutines for fully asynchronous, non-blocking communication.
 
 ## Features
