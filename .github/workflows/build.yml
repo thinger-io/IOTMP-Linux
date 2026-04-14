@@ -17,13 +17,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake \
-            libboost-program-options-dev \
-            libboost-date-time-dev \
-            libboost-iostreams-dev \
+            libboost-all-dev \
             libssl-dev
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBoost_NO_BOOST_CMAKE=ON
 
       - name: Build
         run: cmake --build build -j$(nproc)
