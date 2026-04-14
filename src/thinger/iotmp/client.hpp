@@ -823,14 +823,27 @@ namespace thinger::iotmp {
             switch(request.get_message_type()) {
                 case message::RUN: {
                     iotmp_message response(request.get_stream_id(), message::type::OK);
+                    std::function<void()> after_response;
                     // Dispatch blocking resource execution to thread pool
                     // After co_await, execution resumes on io_context (safe for send_message)
                     bool success = co_await co_spawn(resource_pool_.get_executor(),
-                        [resource, &request, &response]() -> awaitable<bool> {
-                            co_return resource->run_resource(request, response);
+                        [resource, &request, &response, &after_response]() -> awaitable<bool> {
+                            co_return resource->run_resource(request, response, after_response);
                         }(), use_awaitable);
                     response.set_message_type(success ? message::type::OK : message::type::ERROR);
                     send_message(response);
+                    // Run any continuation registered by the handler after
+                    // the response has been sent. Spawned on the resource
+                    // pool so the io_context stays free; detached because
+                    // the handler typically performs side effects (restart,
+                    // exec, …) and does not feed back into the protocol.
+                    if (after_response) {
+                        boost::asio::co_spawn(resource_pool_.get_executor(),
+                            [cb = std::move(after_response)]() -> awaitable<void> {
+                                cb();
+                                co_return;
+                            }, boost::asio::detached);
+                    }
                     break;
                 }
 

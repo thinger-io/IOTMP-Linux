@@ -278,15 +278,32 @@ namespace thinger::iotmp{
         }
 
     protected:
-        json&   data_;
-        int     code_;
-        bool    describe_;
-        bool    success_;
+        json&                     data_;
+        int                       code_;
+        bool                      describe_;
+        bool                      success_;
+        std::function<void()>     after_response_;
 
     public:
 
         bool describe() {
             return describe_;
+        }
+
+        // Register a callback that will run after the response for this
+        // request has been sent on the wire. Useful for handlers that need
+        // to acknowledge the caller before performing work that may stop
+        // the agent (e.g. apply update, restart, factory reset).
+        // Replacing a previously set callback overwrites it.
+        output& after_response(std::function<void()> cb) {
+            after_response_ = std::move(cb);
+            return *this;
+        }
+
+        // Move out the registered callback (if any). Used by the dispatcher
+        // after run_resource returns to invoke the continuation post-send.
+        std::function<void()> take_after_response() {
+            return std::move(after_response_);
         }
 
         void set_describe(bool describe) {
@@ -458,11 +475,16 @@ namespace thinger::iotmp{
     public:
 
         /**
-         * Handle a request and fill a possible response
+         * Handle a request and fill a possible response.
+         *
+         * If the handler registered an after_response() callback on the
+         * output, it is moved into `after_response` so the dispatcher can
+         * invoke it after the response has been sent on the wire.
          */
-        bool run_resource(iotmp_message& request, iotmp_message& response){
+        bool run_resource(iotmp_message& request, iotmp_message& response,
+                          std::function<void()>& after_response){
             bool success = true;
-            
+
             switch(io_type_){
                 case input_wrapper: {
                     input in(request.get_stream_id(), request[message::field::PAYLOAD]);
@@ -476,6 +498,7 @@ namespace thinger::iotmp{
                     callback_.output_(out);
                     if(out.get_return_code()!=0) response[message::field::PARAMETERS] = out.get_return_code();
                     success = out.is_success();
+                    after_response = out.take_after_response();
                 }
                     break;
                 case run: {
@@ -491,13 +514,21 @@ namespace thinger::iotmp{
                     callback_.input_output_(in, out);
                     if(out.get_return_code()!=0) response[message::field::PARAMETERS] = out.get_return_code();
                     success = out.is_success();
+                    after_response = out.take_after_response();
                 }
                     break;
                 case none:
                     break;
             }
-            
+
             return success;
+        }
+
+        // Backward-compatible overload for callers that don't care about
+        // the after_response continuation.
+        bool run_resource(iotmp_message& request, iotmp_message& response){
+            std::function<void()> ignored;
+            return run_resource(request, response, ignored);
         }
 
         /**
