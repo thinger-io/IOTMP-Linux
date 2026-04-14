@@ -6,11 +6,45 @@
 #include <boost/asio/writable_pipe.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
+#include <cstdlib>
+#include <filesystem>
+#include <pwd.h>
+#include <unistd.h>
 
 namespace thinger::iotmp{
 
+    namespace {
+        const std::string& preferred_shell() {
+            static const std::string shell = [] {
+                // Preference order matches the interactive terminal extension.
+                for (const char* name : {"zsh", "bash", "sh", "ash"}) {
+                    std::string path = std::string("/bin/") + name;
+                    if (std::filesystem::exists(path)) return path;
+                }
+                return std::string("/bin/sh");
+            }();
+            return shell;
+        }
+
+        // Child processes of the agent inherit its environment. systemd units
+        // without User= or in older systemd do not populate HOME, which
+        // surprises scripts that rely on it (cd ~, tilde expansion, etc.).
+        // Resolve HOME from the password database on first use.
+        void ensure_home_env() {
+            static const bool done = [] {
+                if (std::getenv("HOME")) return true;
+                if (passwd* pw = getpwuid(getuid()); pw && pw->pw_dir && *pw->pw_dir) {
+                    setenv("HOME", pw->pw_dir, 0);
+                }
+                return true;
+            }();
+            (void)done;
+        }
+    }
+
     cmd::cmd(client& client)
     {
+        ensure_home_env();
         // initialize cmd resource
         client["cmd"] = [this](input& in, output& out){
             if(in.describe()){
@@ -26,7 +60,7 @@ namespace thinger::iotmp{
                 auto command = get_value(in.payload(), "cmd", empty::string);
                 auto timeout = get_value(in.payload(), "timeout", 30);
                 bool timeout_flag = false;
-                auto retcode = exec("/bin/sh", {"-c", command}, pout, perr, "", timeout, &timeout_flag);
+                auto retcode = exec(preferred_shell(), {"-c", command}, pout, perr, "", timeout, &timeout_flag);
 
                 // signal error at protocol level
                 if(timeout_flag){
