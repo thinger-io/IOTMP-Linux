@@ -164,6 +164,15 @@ namespace thinger::iotmp{
         // run all async operations
         ioc.run();
 
+        // Synchronously reap the child before bp2::process is destroyed.
+        // Without this, a child that was killed via terminate() can leave the
+        // process object in a non-finalized state, and ~process() calls
+        // std::terminate() (the same fail-fast behavior std::thread has when
+        // destroyed without join/detach). Idempotent if the child was already
+        // reaped by async_wait above.
+        boost::system::error_code wait_ec;
+        proc.wait(wait_ec);
+
         return exit_code;
     }
 
