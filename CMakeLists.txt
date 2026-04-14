@@ -48,7 +48,7 @@ if(STATIC)
 else()
     set(Boost_USE_STATIC_LIBS OFF)
 endif()
-find_package(Boost REQUIRED COMPONENTS system program_options date_time process iostreams)
+find_package(Boost REQUIRED COMPONENTS program_options date_time process iostreams)
 
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
@@ -137,7 +137,6 @@ if (NOT PROJECT_IS_TOP_LEVEL)
       httplib::httplib
       OpenSSL::SSL
       OpenSSL::Crypto
-      Boost::system
       Boost::program_options
       Boost::date_time
       Boost::process
@@ -191,7 +190,6 @@ else()
       nlohmann_json::nlohmann_json
       OpenSSL::SSL
       OpenSSL::Crypto
-      Boost::system
       Boost::program_options
       Boost::process
       $<$<PLATFORM_ID:Linux>:util>
