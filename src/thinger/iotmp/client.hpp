@@ -857,7 +857,15 @@ namespace thinger::iotmp {
 
                 case message::DESCRIBE: {
                     iotmp_message response(request.get_stream_id(), message::type::OK);
-                    resource->describe(response);
+                    // Dispatch to the resource pool so handlers that do real
+                    // work during describe (e.g. scripts that execute a
+                    // subprocess to produce their sample output) don't block
+                    // the io_context and stall keep-alives / other messages.
+                    co_await co_spawn(resource_pool_.get_executor(),
+                        [resource, &response]() -> awaitable<void> {
+                            resource->describe(response);
+                            co_return;
+                        }(), use_awaitable);
                     send_message(response);
                     break;
                 }
