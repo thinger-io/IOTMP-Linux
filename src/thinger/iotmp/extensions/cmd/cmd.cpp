@@ -19,6 +19,7 @@ namespace thinger::iotmp{
                 in["cmd"]       = "";
                 in["mode"]      = "api";
                 in["timeout"]   = 30;
+                in["stdin"]     = "";
                 out["retcode"]  = 0;
                 out["stdout"]   = "";
                 out["stderr"]   = "";
@@ -27,8 +28,9 @@ namespace thinger::iotmp{
                 std::string perr;
                 auto command = get_value(in.payload(), "cmd", empty::string);
                 auto timeout = get_value(in.payload(), "timeout", 30);
+                auto stdin_data = get_value(in.payload(), "stdin", empty::string);
                 bool timeout_flag = false;
-                auto retcode = exec(preferred_shell(), {"-c", command}, pout, perr, "", timeout, &timeout_flag);
+                auto retcode = exec(preferred_shell(), {"-c", command}, pout, perr, stdin_data, timeout, &timeout_flag);
 
                 // signal error at protocol level
                 if(timeout_flag){
