@@ -14,6 +14,8 @@
 #include "thinger/iotmp/extensions/terminal/terminal.hpp"
 #include "thinger/iotmp/extensions/proxy/proxy.hpp"
 #include "thinger/iotmp/extensions/version/version.hpp"
+#include "thinger/iotmp/extensions/cmd/cmd.hpp"
+#include "thinger/iotmp/extensions/cmd/cmd_stream.hpp"
 
 using namespace thinger::iotmp;
 namespace po = boost::program_options;
@@ -87,6 +89,8 @@ int main(int argc, char* argv[]) {
     filesystem fs(iotmp_client, fs_path.empty() ? std::filesystem::current_path() : std::filesystem::path(fs_path));
     proxy tcp_proxy(iotmp_client);
     version ver(iotmp_client);
+    cmd cmd_extension(iotmp_client);
+    cmd_stream cmd_stream_extension(iotmp_client);
 
     // Iniciar cliente (arranca workers automáticamente)
     std::cout << "Starting async client...\n";
