@@ -7,6 +7,9 @@
 #include <boost/asio/writable_pipe.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
+#include <filesystem>
+#include <fstream>
+#include <random>
 
 namespace thinger::iotmp{
 
@@ -30,7 +33,36 @@ namespace thinger::iotmp{
                 auto timeout = get_value(in.payload(), "timeout", 30);
                 auto stdin_data = get_value(in.payload(), "stdin", empty::string);
                 bool timeout_flag = false;
-                auto retcode = exec(preferred_shell(), {"-c", command}, pout, perr, stdin_data, timeout, &timeout_flag);
+                int retcode = 0;
+
+                // If the body starts with a shebang, materialize it to a temp
+                // file and execute it directly so the interpreter declared in
+                // the shebang (python3, node, …) takes effect. Otherwise fall
+                // back to running the command through the shell, which keeps
+                // multi-line shell snippets, pipes and redirects working.
+                if(command.rfind("#!", 0) == 0){
+                    namespace fs = std::filesystem;
+                    std::random_device rd;
+                    std::uniform_int_distribution<uint64_t> dist;
+                    char buf[17];
+                    std::snprintf(buf, sizeof(buf), "%016llx", (unsigned long long) dist(rd));
+                    auto tmp_path = fs::temp_directory_path() / (std::string("thinr-cmd-") + buf);
+                    std::error_code ec;
+
+                    {
+                        std::ofstream ofs(tmp_path, std::ios::binary);
+                        ofs.write(command.data(), command.size());
+                    }
+                    fs::permissions(tmp_path,
+                        fs::perms::owner_read | fs::perms::owner_write | fs::perms::owner_exec,
+                        fs::perm_options::replace, ec);
+
+                    retcode = exec(tmp_path.string(), {}, pout, perr, stdin_data, timeout, &timeout_flag);
+
+                    fs::remove(tmp_path, ec);
+                }else{
+                    retcode = exec(preferred_shell(), {"-c", command}, pout, perr, stdin_data, timeout, &timeout_flag);
+                }
 
                 // signal error at protocol level
                 if(timeout_flag){
