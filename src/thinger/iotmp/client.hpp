@@ -124,6 +124,14 @@ namespace thinger::iotmp {
             return resources_[path_str](path_str);
         }
 
+        // Unregister a resource by path. Pairs with operator[] so callers
+        // that add resources at runtime can remove them again instead of
+        // accumulating stale entries. Returns true when the resource
+        // existed and was erased.
+        bool erase_resource(std::string_view path) {
+            return resources_.erase(std::string(path)) > 0;
+        }
+
         // Start the client
         bool start() override {
             if(!worker_client::start()) return false;
