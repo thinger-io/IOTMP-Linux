@@ -122,6 +122,7 @@ namespace thinger::iotmp{
         void handle_put(input& in, output& out);  // For small files (inline upload) and directories
         void handle_delete(input& in, output& out);
         void handle_move(input& in, output& out);
+        void handle_hash(input& in, output& out);
 
         bool is_within_base_path(const std::filesystem::path& path) const;
         bool resolve_and_validate_path(input& in, output& out, std::filesystem::path& resolved_path,

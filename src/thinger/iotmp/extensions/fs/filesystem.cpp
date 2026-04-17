@@ -4,10 +4,14 @@
 #include <thinger/util/logger.hpp>
 #include <sys/stat.h>
 #include <algorithm>
+#include <cctype>
+#include <cerrno>
+#include <cstring>
 #include <iomanip>
 #include <sstream>
 #include <fstream>
 #include <vector>
+#include <openssl/evp.h>
 
 namespace thinger::iotmp{
 
@@ -51,6 +55,11 @@ namespace thinger::iotmp{
         // Source comes from wildcard, destination from parameters
         client["$fs/move/*source"] = [&](input& in, output& out){
             handle_move(in, out);
+        };
+
+        // Register $fs/hash resource for streaming file hashing (sha256 by default)
+        client["$fs/hash/*path"] = [&](input& in, output& out){
+            handle_hash(in, out);
         };
         
         // Register stream handlers for file transfers
@@ -496,6 +505,152 @@ namespace thinger::iotmp{
         out["success"] = true;
         out["source"] = source_path.string().c_str();
         out["destination"] = dest_path.string().c_str();
+    }
+
+    void filesystem::handle_hash(input& in, output& out){
+        // In describe mode, return schema without executing
+        if(in.describe()) {
+            in["path"] = "";
+            in["algorithm"] = "sha256";
+            out["path"] = "";
+            out["algorithm"] = "sha256";
+            out["hash"] = "";
+            out["size"] = 0;
+            out["mtime"] = 0;
+            return;
+        }
+
+        // Use centralized path resolution and validation
+        std::filesystem::path target_path;
+        if(!resolve_and_validate_path(in, out, target_path, "path", true)) {
+            return; // Error already set by resolve_and_validate_path
+        }
+
+        std::error_code ec;
+        auto status = std::filesystem::status(target_path, ec);
+        if(ec) {
+            out.set_error(500, ec.message().c_str());
+            return;
+        }
+
+        if(!std::filesystem::is_regular_file(status)){
+            out.set_error(400, "path is not a regular file");
+            return;
+        }
+
+        // Resolve algorithm (case-insensitive). Default: sha256.
+        json_t& params = in.get_params();
+        std::string algorithm = get_value(params, "algorithm", empty::string);
+        if(algorithm.empty()) algorithm = "sha256";
+        std::string algo_lower;
+        algo_lower.reserve(algorithm.size());
+        for(char c : algorithm) {
+            algo_lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+
+        const EVP_MD* md = nullptr;
+        if(algo_lower == "sha256") {
+            md = EVP_sha256();
+        } else if(algo_lower == "sha1") {
+            md = EVP_sha1();
+        } else if(algo_lower == "md5") {
+            md = EVP_md5();
+        } else {
+            out.set_error(400, "unsupported hash algorithm");
+            return;
+        }
+
+        // Open file in binary mode. If opening fails, distinguish permission vs other I/O.
+        errno = 0;
+        std::ifstream file(target_path, std::ios::binary);
+        if(!file.is_open()){
+            if(errno == EACCES || errno == EPERM) {
+                out.set_error(403, "permission denied");
+            } else {
+                std::string msg = "failed to open file";
+                if(errno != 0) {
+                    msg += ": ";
+                    msg += std::strerror(errno);
+                }
+                out.set_error(500, msg.c_str());
+            }
+            return;
+        }
+
+        EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+        if(!ctx) {
+            out.set_error(500, "failed to allocate digest context");
+            return;
+        }
+
+        if(EVP_DigestInit_ex(ctx, md, nullptr) != 1) {
+            EVP_MD_CTX_free(ctx);
+            out.set_error(500, "failed to initialize digest");
+            return;
+        }
+
+        // Stream the file through the digest in fixed-size blocks to keep RSS flat.
+        constexpr size_t HASH_BUFFER_SIZE = 64 * 1024;
+        std::vector<char> buffer(HASH_BUFFER_SIZE);
+        while(true) {
+            file.read(buffer.data(), HASH_BUFFER_SIZE);
+            std::streamsize bytes_read = file.gcount();
+            if(bytes_read > 0) {
+                if(EVP_DigestUpdate(ctx, buffer.data(), static_cast<size_t>(bytes_read)) != 1) {
+                    EVP_MD_CTX_free(ctx);
+                    out.set_error(500, "failed to update digest");
+                    return;
+                }
+            }
+            if(!file.good()) break;
+        }
+
+        if(file.bad()) {
+            EVP_MD_CTX_free(ctx);
+            out.set_error(500, "I/O error while reading file");
+            return;
+        }
+
+        unsigned char digest[EVP_MAX_MD_SIZE];
+        unsigned int digest_len = 0;
+        if(EVP_DigestFinal_ex(ctx, digest, &digest_len) != 1) {
+            EVP_MD_CTX_free(ctx);
+            out.set_error(500, "failed to finalize digest");
+            return;
+        }
+        EVP_MD_CTX_free(ctx);
+
+        // Render digest as lowercase hex (matches `sha256sum` output convention).
+        static const char hex_chars[] = "0123456789abcdef";
+        std::string hex;
+        hex.reserve(static_cast<size_t>(digest_len) * 2);
+        for(unsigned int i = 0; i < digest_len; ++i) {
+            hex.push_back(hex_chars[(digest[i] >> 4) & 0x0f]);
+            hex.push_back(hex_chars[digest[i] & 0x0f]);
+        }
+
+        // Size and mtime are cheap and let the caller skip the hash comparison entirely
+        // when they already don't match.
+        uint64_t fsize = 0;
+        auto fsize_value = std::filesystem::file_size(target_path, ec);
+        if(!ec) fsize = static_cast<uint64_t>(fsize_value);
+
+        uint64_t mtime = 0;
+        auto ftime = std::filesystem::last_write_time(target_path, ec);
+        if(!ec) {
+            auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now()
+            );
+            mtime = static_cast<uint64_t>(std::chrono::system_clock::to_time_t(sctp));
+        }
+
+        out["path"] = target_path.string().c_str();
+        out["algorithm"] = algo_lower.c_str();
+        out["hash"] = hex.c_str();
+        out["size"] = fsize;
+        out["mtime"] = mtime;
+
+        THINGER_LOG("hashed file: {} ({}, {} bytes)", target_path.filename().string(), algo_lower, fsize);
     }
 
     bool filesystem::is_within_base_path(const std::filesystem::path& path) const {
