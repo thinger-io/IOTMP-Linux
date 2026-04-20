@@ -85,7 +85,8 @@ namespace thinger::iotmp{
                     }
                 }catch(const std::exception& e){
                     LOG_ERROR("cmd execution failed: {}", e.what());
-                    out.set_error(500, std::string("command execution error: ") + e.what());
+                    std::string msg = std::string("command execution error: ") + e.what();
+                    out.set_error(500, msg.c_str());
                     out["retcode"] = -1;
                     out["stdout"]  = "";
                     out["stderr"]  = e.what();
