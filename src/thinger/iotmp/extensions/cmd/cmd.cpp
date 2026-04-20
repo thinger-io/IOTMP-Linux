@@ -27,61 +27,74 @@ namespace thinger::iotmp{
                 out["stdout"]   = "";
                 out["stderr"]   = "";
             }else{
-                std::string pout;
-                std::string perr;
-                auto command = get_value(in.payload(), "cmd", empty::string);
-                auto timeout = get_value(in.payload(), "timeout", 30);
-                auto stdin_data = get_value(in.payload(), "stdin", empty::string);
-                bool timeout_flag = false;
-                int retcode = 0;
+                // Isolate the entire execution from the caller's message loop:
+                // Boost.Process v2, pipe setup and shell materialization can
+                // throw (e.g. pidfd_open ENOSYS on pre-5.3 kernels surfaces
+                // as "assign: Bad file descriptor"), and we must never let
+                // those escape and tear down the IOTMP connection cycle.
+                try{
+                    std::string pout;
+                    std::string perr;
+                    auto command = get_value(in.payload(), "cmd", empty::string);
+                    auto timeout = get_value(in.payload(), "timeout", 30);
+                    auto stdin_data = get_value(in.payload(), "stdin", empty::string);
+                    bool timeout_flag = false;
+                    int retcode = 0;
 
-                // If the body starts with a shebang, materialize it to a temp
-                // file and execute it directly so the interpreter declared in
-                // the shebang (python3, node, …) takes effect. Otherwise fall
-                // back to running the command through the shell, which keeps
-                // multi-line shell snippets, pipes and redirects working.
-                if(command.rfind("#!", 0) == 0){
-                    namespace fs = std::filesystem;
-                    std::random_device rd;
-                    std::uniform_int_distribution<uint64_t> dist;
-                    char buf[17];
-                    std::snprintf(buf, sizeof(buf), "%016llx", (unsigned long long) dist(rd));
-                    auto tmp_path = fs::temp_directory_path() / (std::string("thinr-cmd-") + buf);
-                    std::error_code ec;
+                    if(command.rfind("#!", 0) == 0){
+                        namespace fs = std::filesystem;
+                        std::random_device rd;
+                        std::uniform_int_distribution<uint64_t> dist;
+                        char buf[17];
+                        std::snprintf(buf, sizeof(buf), "%016llx", (unsigned long long) dist(rd));
+                        auto tmp_path = fs::temp_directory_path() / (std::string("thinr-cmd-") + buf);
+                        std::error_code ec;
 
-                    {
-                        std::ofstream ofs(tmp_path, std::ios::binary);
-                        ofs.write(command.data(), command.size());
-                    }
-                    fs::permissions(tmp_path,
-                        fs::perms::owner_read | fs::perms::owner_write | fs::perms::owner_exec,
-                        fs::perm_options::replace, ec);
+                        {
+                            std::ofstream ofs(tmp_path, std::ios::binary);
+                            ofs.write(command.data(), command.size());
+                        }
+                        fs::permissions(tmp_path,
+                            fs::perms::owner_read | fs::perms::owner_write | fs::perms::owner_exec,
+                            fs::perm_options::replace, ec);
 
-                    retcode = exec(tmp_path.string(), {}, pout, perr, stdin_data, timeout, &timeout_flag);
+                        retcode = exec(tmp_path.string(), {}, pout, perr, stdin_data, timeout, &timeout_flag);
 
-                    fs::remove(tmp_path, ec);
-                }else{
-                    retcode = exec(preferred_shell(), {"-c", command}, pout, perr, stdin_data, timeout, &timeout_flag);
-                }
-
-                // signal error at protocol level
-                if(timeout_flag){
-                    out.set_error(408, "command timed out");
-                }else if(retcode != 0){
-                    out.set_error(500, "command failed");
-                }
-
-                std::string mode = get_value(in.payload(), "mode", empty::string);
-                if(mode=="api" || mode == ""){
-                    out["retcode"] = retcode;
-                    out["stdout"]  = pout;
-                    out["stderr"]  = perr;
-                }else if(mode=="text"){
-                    if(!pout.empty()){
-                        out = pout;
+                        fs::remove(tmp_path, ec);
                     }else{
-                        out = perr;
+                        retcode = exec(preferred_shell(), {"-c", command}, pout, perr, stdin_data, timeout, &timeout_flag);
                     }
+
+                    if(timeout_flag){
+                        out.set_error(408, "command timed out");
+                    }else if(retcode != 0){
+                        out.set_error(500, "command failed");
+                    }
+
+                    std::string mode = get_value(in.payload(), "mode", empty::string);
+                    if(mode=="api" || mode == ""){
+                        out["retcode"] = retcode;
+                        out["stdout"]  = pout;
+                        out["stderr"]  = perr;
+                    }else if(mode=="text"){
+                        if(!pout.empty()){
+                            out = pout;
+                        }else{
+                            out = perr;
+                        }
+                    }
+                }catch(const std::exception& e){
+                    LOG_ERROR("cmd execution failed: {}", e.what());
+                    out.set_error(500, std::string("command execution error: ") + e.what());
+                    out["retcode"] = -1;
+                    out["stdout"]  = "";
+                    out["stderr"]  = e.what();
+                }catch(...){
+                    LOG_ERROR("cmd execution failed: unknown exception");
+                    out.set_error(500, "command execution error: unknown");
+                    out["retcode"] = -1;
+                    out["stdout"]  = "";
+                    out["stderr"]  = "unknown exception";
                 }
             }
         };

@@ -50,6 +50,13 @@ else()
 endif()
 find_package(Boost REQUIRED COMPONENTS program_options date_time process iostreams)
 
+# Boost.Process v2 defaults to pidfd_open on Linux for process tracking, but
+# that syscall requires kernel 5.3+. On older kernels (e.g. Ubuntu 18.04's
+# 4.15) it fails with ENOSYS and surfaces as "assign: Bad file descriptor"
+# from reactive_descriptor_service, taking down the caller. Force the
+# SIGCHLD-based handle so the binary stays portable to pre-5.3 kernels.
+add_definitions(-DBOOST_PROCESS_V2_DISABLE_PIDFD_OPEN)
+
 add_definitions( -DTHINGER_ENABLE_STREAM_LISTENER)
 add_definitions( -DTHINGER_SERVER="iot.thinger.io")
 add_definitions( -DTHINGER_KEEP_ALIVE_SECONDS=60)
