@@ -640,6 +640,8 @@ namespace thinger::iotmp {
                 auto [ec, bytes] = co_await socket_->write(reinterpret_cast<const uint8_t*>(data.data()), data.size());
                 if(ec) {
                     LOG_ERROR("Write error: {}", ec.message());
+                    connected_ = false;
+                    if(socket_) socket_->close();
                     break;
                 }
             }
@@ -656,6 +658,8 @@ namespace thinger::iotmp {
             auto [ec, bytes] = co_await socket_->write(reinterpret_cast<const uint8_t*>(encoded.data()), encoded.size());
             if(ec) {
                 LOG_ERROR("Write error: {}", ec.message());
+                connected_ = false;
+                if(socket_) socket_->close();
                 co_return false;
             }
             co_return true;
