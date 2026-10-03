@@ -94,6 +94,12 @@ namespace thinger::iotmp {
             host_ = std::move(host);
         }
 
+        // Enable/disable TLS server certificate verification (default: enabled).
+        // Disable only for development against self-signed servers.
+        void set_verify_ssl(bool verify) {
+            verify_ssl_ = verify;
+        }
+
         void set_transport(transport_type transport) {
             transport_ = transport;
             // Set default port based on transport
@@ -453,6 +459,7 @@ namespace thinger::iotmp {
 
             // Use async client for WebSocket upgrade
             thinger::http::async_client http_client;
+            http_client.verify_ssl(verify_ssl_);
             auto ws_client = co_await http_client.request(ws_url).protocol("iotmp").websocket();
 
             if(!ws_client) {
@@ -476,7 +483,10 @@ namespace thinger::iotmp {
                     if(!ssl_context_) {
                         ssl_context_ = std::make_shared<boost::asio::ssl::context>(
                             boost::asio::ssl::context::tlsv12_client);
-                        ssl_context_->set_verify_mode(boost::asio::ssl::verify_none);
+                        ssl_context_->set_default_verify_paths();
+                        ssl_context_->set_verify_mode(verify_ssl_
+                            ? boost::asio::ssl::verify_peer
+                            : boost::asio::ssl::verify_none);
                     }
                     return std::make_shared<thinger::asio::ssl_socket>("iotmp_client", io, ssl_context_);
                 }
@@ -982,6 +992,7 @@ namespace thinger::iotmp {
         transport_type transport_ = transport_type::SSL;
         std::shared_ptr<thinger::asio::socket> socket_;
         std::shared_ptr<boost::asio::ssl::context> ssl_context_;
+        bool verify_ssl_ = true;
         std::optional<asio::steady_timer> keep_alive_timer_;
         std::optional<asio::steady_timer> stream_timer_;
 
