@@ -148,9 +148,26 @@ namespace thinger::iotmp{
         }
         stdin_pipe.close();
 
-        // buffer for stdout
+        // buffers for stdout and stderr
         std::string stdout_data;
         boost::asio::dynamic_string_buffer stdout_buffer(stdout_data, 1024);
+        std::string stderr_data;
+        boost::asio::dynamic_string_buffer stderr_buffer(stderr_data, 1024);
+
+        int exit_code = -1;
+
+        // timeout timer, declared before the handlers that cancel it
+        boost::asio::steady_timer timer(ioc);
+
+        // A process can exit with output still buffered in the pipe, so the
+        // loop runs until stdout and stderr have both been drained to EOF and
+        // the process has been reaped. Each of those three completions
+        // decrements the counter; the last one cancels the timer so ioc.run()
+        // has no work left and returns.
+        int pending = 3;
+        auto on_pending_done = [&]() {
+            if (--pending == 0) timer.cancel();
+        };
 
         std::function<void(boost::system::error_code, std::size_t)> on_stdout;
         on_stdout = [&](boost::system::error_code ec, std::size_t size) {
@@ -159,12 +176,10 @@ namespace thinger::iotmp{
                 stdout_data.erase(0, size);
                 boost::asio::async_read(stdout_pipe, stdout_buffer,
                     boost::asio::transfer_at_least(1), on_stdout);
+            } else {
+                on_pending_done();
             }
         };
-
-        // buffer for stderr
-        std::string stderr_data;
-        boost::asio::dynamic_string_buffer stderr_buffer(stderr_data, 1024);
 
         std::function<void(boost::system::error_code, std::size_t)> on_stderr;
         on_stderr = [&](boost::system::error_code ec, std::size_t size) {
@@ -174,6 +189,8 @@ namespace thinger::iotmp{
                 stderr_data.erase(0, size);
                 boost::asio::async_read(stderr_pipe, stderr_buffer,
                     boost::asio::transfer_at_least(1), on_stderr);
+            } else {
+                on_pending_done();
             }
         };
 
@@ -183,10 +200,9 @@ namespace thinger::iotmp{
         boost::asio::async_read(stderr_pipe, stderr_buffer,
             boost::asio::transfer_at_least(1), on_stderr);
 
-        int exit_code = -1;
-
-        // optional timeout
-        boost::asio::steady_timer timer(ioc);
+        // Optional timeout. On expiry, terminate the process and close the
+        // pipes so the reads reach their end even if a descendant inherited
+        // them and keeps them open.
         if (timeout_seconds > 0) {
             timer.expires_after(std::chrono::seconds(timeout_seconds));
             timer.async_wait([&](boost::system::error_code ec) {
@@ -195,20 +211,22 @@ namespace thinger::iotmp{
                     if (timed_out) *timed_out = true;
                     boost::system::error_code kill_ec;
                     proc.terminate(kill_ec);
+                    boost::system::error_code close_ec;
+                    stdout_pipe.close(close_ec);
+                    stderr_pipe.close(close_ec);
                 }
             });
         }
 
-        // wait until the process finishes
+        // reap the process and record its exit code; the reads keep draining
         proc.async_wait([&](boost::system::error_code ec, int native_exit_code) {
             if (!ec) {
                 exit_code = bp2::evaluate_exit_code(native_exit_code);
             }
-            timer.cancel();
-            ioc.stop();
+            on_pending_done();
         });
 
-        // run all async operations
+        // run until the pipes are drained to EOF and the process is reaped
         ioc.run();
 
         // bp2::process behaves like std::thread: its destructor calls
