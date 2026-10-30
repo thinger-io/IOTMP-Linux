@@ -97,7 +97,8 @@ int main(int argc, char* argv[]) {
     iotmp_client.start();
 
     // Esperar señales de cierre (Ctrl+C o SIGTERM)
-    thinger::asio::get_workers().wait();
+    iotmp_client.wait();
+    iotmp_client.stop();
 
     std::cout << "Client stopped.\n";
     return 0;

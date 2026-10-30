@@ -14,6 +14,7 @@
 #include <queue>
 #include <future>
 #include <optional>
+#include <atomic>
 
 #include "core/iotmp_types.hpp"
 #include "core/iotmp_message.hpp"
@@ -30,7 +31,6 @@
 #include <thinger/asio/sockets/websocket.hpp>
 #include <thinger/http/client/async_client.hpp>
 #include <thinger/asio/workers.hpp>
-#include <thinger/asio/worker_client.hpp>
 #include <thinger/util/types.hpp>
 #include <thinger/util/logger.hpp>
 
@@ -70,14 +70,14 @@ namespace thinger::iotmp {
     };
 
     // Async IOTMP client using C++20 coroutines
-    class client : public thinger::asio::worker_client {
+    class client {
     public:
         static constexpr size_t MAX_MESSAGE_SIZE = 256 * 1024;  // 256KB max (chunks + protocol overhead)
         static constexpr auto KEEP_ALIVE_INTERVAL = std::chrono::seconds(60);
         static constexpr auto CONNECT_TIMEOUT = std::chrono::seconds(15);
         static constexpr auto RECONNECT_DELAY = std::chrono::seconds(5);
 
-        client() : worker_client("iotmp") {}
+        client() = default;
 
         // State callback
         void set_state_callback(std::function<void(client_state, const std::string&)> callback) {
@@ -139,17 +139,23 @@ namespace thinger::iotmp {
         }
 
         // Start the client
-        bool start() override {
-            if(!worker_client::start()) return false;
-            // Use thinger-http worker pool
-            auto& io = thinger::asio::get_workers().get_next_io_context();
+        bool start() {
+            if(running_) return false;
+            if(auto ec = workers_.start()) {
+                LOG_ERROR("failed to start workers: {}", ec.message());
+                return false;
+            }
+            running_ = true;
+            // Run on the client's own worker pool
+            auto& io = workers_.get_next_io_context();
             co_spawn(io, run_loop(), detached);
             return true;
         }
 
         // Stop the client
-        bool stop() override {
-            if(!worker_client::stop()) return false;
+        bool stop() {
+            if(!running_) return false;
+            running_ = false;
             if(keep_alive_timer_) keep_alive_timer_->cancel();
             if(stream_timer_) stream_timer_->cancel();
             resource_pool_.join();
@@ -157,9 +163,19 @@ namespace thinger::iotmp {
                 socket_->close();
                 socket_.reset();
             }
+            workers_.stop();
             notify_state(client_state::DISCONNECTED);
             return true;
         }
+
+        // Block until a termination signal arrives (or stop() releases it),
+        // returning the signal, 0 if released by stop(). The application owns
+        // the lifecycle now that there is no process-wide worker pool.
+        int wait() {
+            return workers_.wait();
+        }
+
+        bool is_running() const { return running_; }
 
         // Implements client
         bool is_connected() const {
@@ -458,7 +474,7 @@ namespace thinger::iotmp {
             std::string ws_url = "wss://" + host_ + ":" + std::to_string(port_) + "/iotmp";
 
             // Use async client for WebSocket upgrade
-            thinger::http::async_client http_client;
+            thinger::http::async_client http_client(workers_);
             http_client.verify_ssl(verify_ssl_);
             auto ws_client = co_await http_client.request(ws_url).protocol("iotmp").websocket();
 
@@ -476,7 +492,7 @@ namespace thinger::iotmp {
         // Socket factory - runtime dispatch based on transport type
         std::shared_ptr<thinger::asio::socket> create_socket() {
             // Use pool workers io_context for socket operations
-            auto& io = thinger::asio::get_workers().get_thread_io_context();
+            auto& io = workers_.get_thread_io_context();
 
             switch(transport_) {
                 case transport_type::SSL: {
@@ -725,7 +741,7 @@ namespace thinger::iotmp {
         awaitable<void> delay(std::chrono::seconds duration) {
             try {
                 // Use current thread's io_context (works even without socket)
-                auto& io = thinger::asio::get_workers().get_thread_io_context();
+                auto& io = workers_.get_thread_io_context();
                 asio::steady_timer timer(io, duration);
                 auto [ec] = co_await timer.async_wait(use_nothrow_awaitable);
             } catch(const std::exception& e) {
@@ -989,6 +1005,10 @@ namespace thinger::iotmp {
         }
 
     private:
+        // The client owns its worker pool: 0.9 removed the process-wide one.
+        thinger::asio::workers workers_;
+        std::atomic<bool> running_{false};
+
         transport_type transport_ = transport_type::SSL;
         std::shared_ptr<thinger::asio::socket> socket_;
         std::shared_ptr<boost::asio::ssl::context> ssl_context_;
