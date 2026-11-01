@@ -103,7 +103,7 @@ set(THINGER_HTTP_ENABLE_LOGGING ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
   thinger_http
   GIT_REPOSITORY https://github.com/thinger-io/thinger-http.git
-  GIT_TAG main
+  GIT_TAG v0.9.0
 )
 FetchContent_MakeAvailable(thinger_http)
 
