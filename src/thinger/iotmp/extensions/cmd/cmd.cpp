@@ -12,9 +12,7 @@
 #include <random>
 #include <fcntl.h>
 #include <unistd.h>
-#if defined(__linux__)
-#include <sys/syscall.h>
-#endif
+#include "../../util/process_cleanup.hpp"
 
 namespace thinger::iotmp{
 
@@ -32,64 +30,6 @@ namespace thinger::iotmp{
             return true;
 #endif
         }
-
-        // Boost.Process initializer that closes the descriptors the child
-        // inherits beyond its standard streams, so a command that hands work
-        // to a detached worker (e.g. a backup that forks and returns) does not
-        // pass a live pipe end on to it and leave cmd::exec waiting for an EOF
-        // that never comes. Boost performs this cleanup with close_range(2),
-        // which requires Linux 5.9; where the syscall is absent it returns
-        // ENOSYS and the descriptors stay open, so the cleanup is repeated here
-        // in a form that does not depend on the kernel version. on_exec_setup
-        // runs in the forked child, after process_stdio has placed the pipe
-        // ends on fd 0/1/2 and before execve. It touches only descriptors >= 3
-        // that are not already close-on-exec, walks /proc/self/fd with raw
-        // syscalls, and uses nothing that is unsafe between fork and exec, so
-        // close-on-exec descriptors (Boost's own error-reporting pipe among
-        // them) are left for execve to drop.
-        struct close_inherited_fds {
-            template<typename Launcher, typename Path>
-            boost::process::v2::error_code on_exec_setup(
-                Launcher& /*launcher*/, const Path& /*executable*/, const char* const* /*cmd_line*/) noexcept
-            {
-#if defined(__linux__)
-                struct fd_entry {
-                    unsigned long long d_ino;
-                    long long          d_off;
-                    unsigned short     d_reclen;
-                    unsigned char      d_type;
-                    char               d_name[];
-                };
-
-                int dir_fd = ::open("/proc/self/fd", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-                if (dir_fd >= 0) {
-                    alignas(long long) char buf[4096];
-                    for (;;) {
-                        long n = ::syscall(SYS_getdents64, dir_fd, buf, sizeof(buf));
-                        if (n <= 0) break;
-                        for (long off = 0; off < n;) {
-                            auto* e = reinterpret_cast<fd_entry*>(buf + off);
-                            if (e->d_reclen == 0) break;
-                            off += e->d_reclen;
-
-                            int fd = 0;
-                            const char* p = e->d_name;
-                            if (*p < '0' || *p > '9') continue;
-                            for (; *p >= '0' && *p <= '9'; ++p) fd = fd * 10 + (*p - '0');
-                            if (*p != '\0') continue;
-                            if (fd < 3 || fd == dir_fd) continue;
-
-                            int flags = ::fcntl(fd, F_GETFD);
-                            if (flags != -1 && !(flags & FD_CLOEXEC))
-                                ::close(fd);
-                        }
-                    }
-                    ::close(dir_fd);
-                }
-#endif
-                return boost::process::v2::error_code{};
-            }
-        };
     }
 
     cmd::cmd(client& client)

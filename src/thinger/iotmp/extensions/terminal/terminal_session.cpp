@@ -1,5 +1,6 @@
 #include "terminal_session.hpp"
 #include "../../util/shell.hpp"
+#include "../../util/process_cleanup.hpp"
 
 #include <boost/process.hpp>
 #include <boost/asio.hpp>
@@ -54,6 +55,11 @@ awaitable<exec_result> terminal_session::start() {
     if(pid_ == 0) {
         // Child process
         setenv("TERM", "xterm-256color", 1);
+        // forkpty has already placed the PTY slave on fd 0/1/2; drop every
+        // other descriptor inherited from the agent before handing control
+        // to the shell, so the interactive session and anything it spawns
+        // start with a clean descriptor table.
+        close_inherited_fds_from(3);
         exit(execlp(term_path.c_str(), terminal_.c_str(), "-l", "-i", "-s", nullptr));
 
     } else if(pid_ > 0) {

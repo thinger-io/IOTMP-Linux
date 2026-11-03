@@ -1,5 +1,6 @@
 #include "cmd_stream_session.hpp"
 #include "../../util/shell.hpp"
+#include "../../util/process_cleanup.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
@@ -51,6 +52,10 @@ namespace thinger::iotmp {
             preferred_shell(),
             args,
             bp2::process_stdio{stdin_pipe_, stdout_pipe_, stderr_pipe_},
+            // Order matters: the asio pipes' child-side ends are not
+            // close-on-exec, so this must run after process_stdio has dup2'd
+            // them onto 0/1/2, then close the leftover non-cloexec copies.
+            close_inherited_fds{},
             ec
         );
 
