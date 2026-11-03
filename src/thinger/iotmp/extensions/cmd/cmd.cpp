@@ -10,8 +10,26 @@
 #include <filesystem>
 #include <fstream>
 #include <random>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace thinger::iotmp{
+
+    namespace {
+        // Create a pipe whose both ends are close-on-exec. The command keeps
+        // its stdio because dup2() onto fd 0/1/2 clears the flag on those
+        // targets; every other inherited copy is dropped at exec().
+        bool make_cloexec_pipe(int fds[2]) {
+#if defined(__linux__)
+            return ::pipe2(fds, O_CLOEXEC) == 0;
+#else
+            if (::pipe(fds) != 0) return false;
+            ::fcntl(fds[0], F_SETFD, FD_CLOEXEC);
+            ::fcntl(fds[1], F_SETFD, FD_CLOEXEC);
+            return true;
+#endif
+        }
+    }
 
     cmd::cmd(client& client)
     {
@@ -113,24 +131,41 @@ namespace thinger::iotmp{
         boost::asio::io_context ioc;
         namespace bp2 = boost::process::v2;
 
-        // pipes for stdin, stdout and stderr
+        // Pipes for stdin, stdout and stderr, created close-on-exec so the
+        // only copies the command and its descendants inherit are the ones
+        // dup2() installs on fd 0/1/2. A descendant the command detaches
+        // (e.g. `setsid ... </dev/null >>log 2>&1 & disown`) then holds no
+        // write end, so stdout/stderr reach EOF when the command itself exits
+        // rather than when the whole descendant tree does.
+        int in_fds[2], out_fds[2], err_fds[2];
+        if(!make_cloexec_pipe(in_fds) || !make_cloexec_pipe(out_fds) || !make_cloexec_pipe(err_fds)){
+            LOG_ERROR("error creating pipes");
+            perr = "failed to create pipes";
+            return EXIT_FAILURE;
+        }
+
         boost::asio::writable_pipe stdin_pipe(ioc);
         boost::asio::readable_pipe stdout_pipe(ioc);
         boost::asio::readable_pipe stderr_pipe(ioc);
+        stdin_pipe.assign(in_fds[1]);
+        stdout_pipe.assign(out_fds[0]);
+        stderr_pipe.assign(err_fds[0]);
 
-        // create the process
+        // create the process with the child-side end of each pipe
         boost::system::error_code proc_ec;
         bp2::process proc(
             ioc.get_executor(),
             executable,
             args,
-            bp2::process_stdio{
-                stdin_pipe,
-                stdout_pipe,
-                stderr_pipe
-            },
+            bp2::process_stdio{ in_fds[0], out_fds[1], err_fds[1] },
             proc_ec
         );
+
+        // The parent keeps only the ends wrapped above; its copies of the
+        // child-side ends must go or stdout/stderr would never reach EOF.
+        ::close(in_fds[0]);
+        ::close(out_fds[1]);
+        ::close(err_fds[1]);
 
         if(proc_ec) {
             LOG_ERROR("error creating process: {}", proc_ec.message());
