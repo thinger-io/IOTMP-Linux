@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 #include <chrono>
+#include <atomic>
 
 // Forward declaration to avoid circular dependency
 namespace thinger::iotmp {
@@ -44,9 +45,11 @@ public:
           session_(std::move(session)),
           last_(std::chrono::system_clock::now())
     {
+        active_sessions_.fetch_add(1, std::memory_order_relaxed);
     }
 
     virtual ~stream_session() {
+        active_sessions_.fetch_sub(1, std::memory_order_relaxed);
         THINGER_LOG("stream session {} ended. {} sent, {} received", stream_id_, sent_, received_);
         if(on_end_) on_end_();
     }
@@ -81,6 +84,13 @@ public:
             std::chrono::system_clock::now() - last_);
     }
 
+    // Live stream sessions across all stream types (terminal, exec stream,
+    // proxy, file transfer). Lets the agent defer a binary swap while an
+    // interactive session is open.
+    static size_t active_count() {
+        return active_sessions_.load(std::memory_order_relaxed);
+    }
+
 protected:
     void increase_sent(size_t bytes) {
         sent_ += bytes;
@@ -100,6 +110,7 @@ protected:
     size_t sent_ = 0;
     size_t received_ = 0;
     std::function<void()> on_end_;
+    inline static std::atomic<size_t> active_sessions_{0};
 };
 
 }

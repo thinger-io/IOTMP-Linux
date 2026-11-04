@@ -525,12 +525,14 @@ namespace thinger::iotmp {
             connect_msg[message::field::PAYLOAD] = json_t::array({username_, device_id_, device_password_});
 
             if(!co_await write_message(connect_msg)) {
-                notify_state(client_state::AUTH_FAILED);
+                // transport failure during handshake, not a credential rejection
+                notify_state(client_state::AUTH_FAILED, "io_error");
                 co_return false;
             }
             auto response = co_await read_message();
             if(!response) {
-                notify_state(client_state::AUTH_FAILED);
+                // transport failure during handshake, not a credential rejection
+                notify_state(client_state::AUTH_FAILED, "io_error");
                 co_return false;
             }
 
